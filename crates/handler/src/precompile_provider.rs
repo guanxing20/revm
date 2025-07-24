@@ -8,8 +8,10 @@ use primitives::{hardfork::SpecId, Address, Bytes};
 use std::boxed::Box;
 use std::string::String;
 
+/// Provider for precompiled contracts in the EVM.
 #[auto_impl(&mut, Box)]
 pub trait PrecompileProvider<CTX: ContextTr> {
+    /// The output type returned by precompile execution.
     type Output;
 
     /// Sets the spec id and returns true if the spec id was changed. Initial call to set_spec will always return true.
@@ -99,6 +101,7 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for EthPrecompiles {
         let Some(precompile) = self.precompiles.get(address) else {
             return Ok(None);
         };
+
         let mut result = InterpreterResult {
             result: InstructionResult::Return,
             gas: Gas::new(gas_limit),
@@ -118,11 +121,15 @@ impl<CTX: ContextTr> PrecompileProvider<CTX> for EthPrecompiles {
             CallInput::Bytes(bytes) => bytes.0.iter().as_slice(),
         };
 
-        match (*precompile)(input_bytes, gas_limit) {
+        match (*precompile)(input_bytes, gas_limit, self.precompiles.crypto()) {
             Ok(output) => {
                 let underflow = result.gas.record_cost(output.gas_used);
                 assert!(underflow, "Gas underflow is not possible");
-                result.result = InstructionResult::Return;
+                result.result = if output.reverted {
+                    InstructionResult::Revert
+                } else {
+                    InstructionResult::Return
+                };
                 result.output = output.bytes;
             }
             Err(PrecompileError::Fatal(e)) => return Err(e),

@@ -1,8 +1,8 @@
 use auto_impl::auto_impl;
 use context::{Database, Journal, JournalEntry};
 use interpreter::{
-    interpreter::EthInterpreter, CallInputs, CallOutcome, CreateInputs, CreateOutcome,
-    EOFCreateInputs, Interpreter, InterpreterTypes,
+    interpreter::EthInterpreter, CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter,
+    InterpreterTypes,
 };
 use primitives::{Address, Log, U256};
 use state::EvmState;
@@ -17,7 +17,7 @@ use state::EvmState;
 pub trait Inspector<CTX, INTR: InterpreterTypes = EthInterpreter> {
     /// Called before the interpreter is initialized.
     ///
-    /// If `interp.set_action` is set the execution of the interpreter is skipped.
+    /// If `interp.bytecode.set_action` is set the execution of the interpreter is skipped.
     #[inline]
     fn initialize_interp(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
         let _ = interp;
@@ -31,7 +31,7 @@ pub trait Inspector<CTX, INTR: InterpreterTypes = EthInterpreter> {
     ///
     /// # Example
     ///
-    /// To get the current opcode, use `interp.current_opcode()`.
+    /// To get the current opcode, use `interp.bytecode.opcode()`.
     #[inline]
     fn step(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
         let _ = interp;
@@ -91,38 +91,12 @@ pub trait Inspector<CTX, INTR: InterpreterTypes = EthInterpreter> {
 
     /// Called when a contract has been created.
     ///
-    /// InstructionResulting anything other than the values passed to this function (`(ret, remaining_gas,
-    /// address, out)`) will alter the result of the create.
+    /// Modifying the outcome will alter the result of the create operation.
     #[inline]
     fn create_end(
         &mut self,
         context: &mut CTX,
         inputs: &CreateInputs,
-        outcome: &mut CreateOutcome,
-    ) {
-        let _ = context;
-        let _ = inputs;
-        let _ = outcome;
-    }
-
-    /// Called when EOF creating is called.
-    ///
-    /// This can happen from create TX or from EOFCREATE opcode.
-    fn eofcreate(
-        &mut self,
-        context: &mut CTX,
-        inputs: &mut EOFCreateInputs,
-    ) -> Option<CreateOutcome> {
-        let _ = context;
-        let _ = inputs;
-        None
-    }
-
-    /// Called when eof creating has ended.
-    fn eofcreate_end(
-        &mut self,
-        context: &mut CTX,
-        inputs: &EOFCreateInputs,
         outcome: &mut CreateOutcome,
     ) {
         let _ = context;

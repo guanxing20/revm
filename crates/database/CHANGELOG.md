@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.2](https://github.com/bluealloy/revm/compare/revm-database-v7.0.1...revm-database-v7.0.2) - 2025-07-23
+
+### Other
+
+- updated the following local packages: revm-primitives, revm-bytecode, revm-database-interface, revm-state
+
+## [7.0.1](https://github.com/bluealloy/revm/compare/revm-database-v7.0.0...revm-database-v7.0.1) - 2025-07-03
+
+### Other
+
+- updated the following local packages: revm-bytecode, revm-state, revm-database-interface
+
+## [7.0.0](https://github.com/bluealloy/revm/compare/revm-database-v6.0.0...revm-database-v7.0.0) - 2025-06-30
+
+### Other
+
+- updated the following local packages: revm-bytecode, revm-state, revm-database-interface
+
+## [6.0.0](https://github.com/bluealloy/revm/compare/revm-database-v5.0.0...revm-database-v6.0.0) - 2025-06-19
+
+### Added
+
+- *(precompile)* rug/gmp-based modexp ([#2596](https://github.com/bluealloy/revm/pull/2596))
+
+### Fixed
+
+- change account state to None if NotExisting on insert_account_info ([#2630](https://github.com/bluealloy/revm/pull/2630))
+
+### Other
+
+- lints for revm-database ([#2639](https://github.com/bluealloy/revm/pull/2639))
+- bump alloydb test ([#2640](https://github.com/bluealloy/revm/pull/2640))
+
 ## [5.0.0](https://github.com/bluealloy/revm/compare/revm-database-v4.0.1...revm-database-v5.0.0) - 2025-06-06
 
 ### Added

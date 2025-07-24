@@ -35,8 +35,14 @@ pub trait Cfg {
     /// Returns the maximum code size for the given spec id.
     fn max_code_size(&self) -> usize;
 
+    /// Returns the max initcode size for the given spec id.
+    fn max_initcode_size(&self) -> usize;
+
     /// Returns whether the EIP-3607 (account clearing) is disabled.
     fn is_eip3607_disabled(&self) -> bool;
+
+    /// Returns whether the EIP-3541 (disallowing new contracts with 0xEF prefix) is disabled.
+    fn is_eip3541_disabled(&self) -> bool;
 
     /// Returns whether the balance check is disabled.
     fn is_balance_check_disabled(&self) -> bool;
@@ -69,10 +75,11 @@ pub enum AnalysisKind {
 pub type TransactTo = TxKind;
 
 /// Create scheme
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Default, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CreateScheme {
     /// Legacy create scheme of `CREATE`
+    #[default]
     Create,
     /// Create scheme of `CREATE2`
     Create2 {

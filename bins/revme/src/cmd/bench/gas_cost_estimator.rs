@@ -11,7 +11,7 @@ use std::io::Cursor;
 pub fn run(criterion: &mut Criterion) {
     //let bytecode = Bytecode::new_raw(Bytes::from(hex::decode(BYTES).unwrap()));
 
-    let mut rdr = csv::Reader::from_reader(Cursor::new(BYTES));
+    let mut rdr = csv::Reader::from_reader(Cursor::new(SAMPLE_CSV));
     for result in rdr.records() {
         let result = result.expect("Failed to read record");
         let name = &result[0];
@@ -26,12 +26,12 @@ pub fn run(criterion: &mut Criterion) {
             .modify_cfg_chained(|c| c.disable_nonce_check = true)
             .build_mainnet();
 
-        let tx = TxEnv {
-            caller: BENCH_CALLER,
-            kind: TxKind::Call(BENCH_TARGET),
-            gas_limit: 1_000_000_000,
-            ..Default::default()
-        };
+        let tx = TxEnv::builder()
+            .caller(BENCH_CALLER)
+            .kind(TxKind::Call(BENCH_TARGET))
+            .gas_limit(1_000_000_000)
+            .build()
+            .unwrap();
 
         criterion.bench_function(name, |b| {
             b.iter_batched(
@@ -48,4 +48,4 @@ pub fn run(criterion: &mut Criterion) {
     }
 }
 
-const BYTES: &str = include_str!("gas_cost_estimator_sample.hex");
+const SAMPLE_CSV: &str = include_str!("gas_cost_estimator_sample.csv");

@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0](https://github.com/bluealloy/revm/compare/revm-bytecode-v6.0.1...revm-bytecode-v6.1.0) - 2025-07-23
+
+### Added
+
+- *(bytecode)* add version getter + make versoin dynamic ([#2751](https://github.com/bluealloy/revm/pull/2751))
+
+### Fixed
+
+- fully deprecate serde-json ([#2767](https://github.com/bluealloy/revm/pull/2767))
+
+### Other
+
+- clean up jump map ([#2764](https://github.com/bluealloy/revm/pull/2764))
+- clean up bytecode analysis ([#2763](https://github.com/bluealloy/revm/pull/2763))
+- Fix typo in EIP-7702 bytecode format comment (magic byte) ([#2733](https://github.com/bluealloy/revm/pull/2733))
+
+## [6.0.1](https://github.com/bluealloy/revm/compare/revm-bytecode-v6.0.0...revm-bytecode-v6.0.1) - 2025-07-03
+
+### Other
+
+- add PartialEq u8 ([#2688](https://github.com/bluealloy/revm/pull/2688))
+
+## [6.0.0](https://github.com/bluealloy/revm/compare/revm-bytecode-v5.0.0...revm-bytecode-v6.0.0) - 2025-06-30
+
+### Fixed
+
+- implement `PartialEq` for `JumpTable` correctly ([#2654](https://github.com/bluealloy/revm/pull/2654))
+
+### Other
+
+- cargo clippy --fix --all ([#2671](https://github.com/bluealloy/revm/pull/2671))
+
+## [5.0.0](https://github.com/bluealloy/revm/compare/revm-bytecode-v4.1.0...revm-bytecode-v5.0.0) - 2025-06-19
+
+### Added
+
+- remove EOF ([#2644](https://github.com/bluealloy/revm/pull/2644))
+- configurable contract size limit ([#2611](https://github.com/bluealloy/revm/pull/2611)) ([#2642](https://github.com/bluealloy/revm/pull/2642))
+- *(precompile)* rug/gmp-based modexp ([#2596](https://github.com/bluealloy/revm/pull/2596))
+- add clz opcode ([#2598](https://github.com/bluealloy/revm/pull/2598))
+
+### Other
+
+- *(tests)* extend test for is_valid jumptable ([#2622](https://github.com/bluealloy/revm/pull/2622))
+- faster JumpTable bits lookup ([#2618](https://github.com/bluealloy/revm/pull/2618))
+
 ## [4.1.0](https://github.com/bluealloy/revm/compare/revm-bytecode-v4.0.1...revm-bytecode-v4.1.0) - 2025-06-06
 
 ### Added

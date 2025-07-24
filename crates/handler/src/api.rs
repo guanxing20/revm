@@ -1,5 +1,5 @@
 use crate::{
-    instructions::InstructionProvider, EthFrame, Handler, MainnetHandler, PrecompileProvider,
+    frame::EthFrame, instructions::InstructionProvider, Handler, MainnetHandler, PrecompileProvider,
 };
 use context::{
     result::{
@@ -17,7 +17,7 @@ use std::vec::Vec;
 pub trait ExecuteEvm {
     /// Output of transaction execution.
     type ExecutionResult;
-    // Output state
+    /// Output state type representing changes after execution.
     type State;
     /// Error type
     type Error;
@@ -55,11 +55,12 @@ pub trait ExecuteEvm {
 
     /// Transact the given transaction and finalize in a single operation.
     ///
-    /// Internally calls [`ExecuteEvm::transact`] followed by [`ExecuteEvm::finalize`].
+    /// Internally calls [`ExecuteEvm::transact_one`] followed by [`ExecuteEvm::finalize`].
     ///
     /// # Outcome of Error
     ///
     /// If the transaction fails, the journal is considered broken.
+    #[inline]
     fn transact(
         &mut self,
         tx: Self::Tx,
@@ -81,6 +82,7 @@ pub trait ExecuteEvm {
     /// If any transaction fails, the journal is finalized and the last error is returned.
     ///
     /// TODO add tx index to the error.
+    #[inline]
     fn transact_many(
         &mut self,
         txs: impl Iterator<Item = Self::Tx>,
@@ -97,7 +99,7 @@ pub trait ExecuteEvm {
     /// Execute multiple transactions and finalize the state in a single operation.
     ///
     /// Internally calls [`ExecuteEvm::transact_many`] followed by [`ExecuteEvm::finalize`].
-    //#[allow(clippy::type_complexity)]
+    #[inline]
     fn transact_many_finalize(
         &mut self,
         txs: impl Iterator<Item = Self::Tx>,
@@ -109,8 +111,6 @@ pub trait ExecuteEvm {
     }
 
     /// Execute previous transaction and finalize it.
-    ///
-    /// Doint it without finalization
     fn replay(
         &mut self,
     ) -> Result<ExecResultAndState<Self::ExecutionResult, Self::State>, Self::Error>;
@@ -124,12 +124,14 @@ pub trait ExecuteCommitEvm: ExecuteEvm {
     /// Finalize the state and commit it to the database.
     ///
     /// Internally calls `finalize` and `commit` functions.
+    #[inline]
     fn commit_inner(&mut self) {
         let state = self.finalize();
         self.commit(state);
     }
 
     /// Transact the transaction and commit to the state.
+    #[inline]
     fn transact_commit(&mut self, tx: Self::Tx) -> Result<Self::ExecutionResult, Self::Error> {
         let output = self.transact_one(tx)?;
         self.commit_inner();
@@ -138,7 +140,8 @@ pub trait ExecuteCommitEvm: ExecuteEvm {
 
     /// Transact multiple transactions and commit to the state.
     ///
-    /// Internally calls `transact_multi` and `commit` functions.
+    /// Internally calls `transact_many` and `commit_inner` functions.
+    #[inline]
     fn transact_many_commit(
         &mut self,
         txs: impl Iterator<Item = Self::Tx>,
@@ -151,6 +154,7 @@ pub trait ExecuteCommitEvm: ExecuteEvm {
     /// Replay the transaction and commit to the state.
     ///
     /// Internally calls `replay` and `commit` functions.
+    #[inline]
     fn replay_commit(&mut self) -> Result<Self::ExecutionResult, Self::Error> {
         let result = self.replay()?;
         self.commit(result.state);
@@ -158,7 +162,8 @@ pub trait ExecuteCommitEvm: ExecuteEvm {
     }
 }
 
-impl<CTX, INSP, INST, PRECOMPILES> ExecuteEvm for Evm<CTX, INSP, INST, PRECOMPILES>
+impl<CTX, INSP, INST, PRECOMPILES> ExecuteEvm
+    for Evm<CTX, INSP, INST, PRECOMPILES, EthFrame<EthInterpreter>>
 where
     CTX: ContextTr<Journal: JournalTr<State = EvmState>> + ContextSetters,
     INST: InstructionProvider<Context = CTX, InterpreterTypes = EthInterpreter>,
@@ -170,35 +175,39 @@ where
     type Tx = <CTX as ContextTr>::Tx;
     type Block = <CTX as ContextTr>::Block;
 
+    #[inline]
     fn transact_one(&mut self, tx: Self::Tx) -> Result<Self::ExecutionResult, Self::Error> {
         self.ctx.set_tx(tx);
-        let mut t = MainnetHandler::<_, _, EthFrame<_, _, _>>::default();
-        t.run(self)
+        MainnetHandler::default().run(self)
     }
 
+    #[inline]
     fn finalize(&mut self) -> Self::State {
         self.journal_mut().finalize()
     }
 
+    #[inline]
     fn set_block(&mut self, block: Self::Block) {
         self.ctx.set_block(block);
     }
 
+    #[inline]
     fn replay(&mut self) -> Result<ResultAndState<HaltReason>, Self::Error> {
-        let mut t = MainnetHandler::<_, _, EthFrame<_, _, _>>::default();
-        t.run(self).map(|result| {
+        MainnetHandler::default().run(self).map(|result| {
             let state = self.finalize();
             ResultAndState::new(result, state)
         })
     }
 }
 
-impl<CTX, INSP, INST, PRECOMPILES> ExecuteCommitEvm for Evm<CTX, INSP, INST, PRECOMPILES>
+impl<CTX, INSP, INST, PRECOMPILES> ExecuteCommitEvm
+    for Evm<CTX, INSP, INST, PRECOMPILES, EthFrame<EthInterpreter>>
 where
     CTX: ContextTr<Journal: JournalTr<State = EvmState>, Db: DatabaseCommit> + ContextSetters,
     INST: InstructionProvider<Context = CTX, InterpreterTypes = EthInterpreter>,
     PRECOMPILES: PrecompileProvider<CTX, Output = InterpreterResult>,
 {
+    #[inline]
     fn commit(&mut self, state: Self::State) {
         self.db_mut().commit(state);
     }

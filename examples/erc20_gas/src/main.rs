@@ -9,6 +9,7 @@ use alloy_sol_types::SolValue;
 use anyhow::Result;
 use exec::transact_erc20evm_commit;
 use revm::{
+    context::TxEnv,
     context_interface::{
         result::{InvalidHeader, InvalidTransaction},
         ContextTr, JournalTr,
@@ -22,13 +23,17 @@ use revm::{
     Context, Database, MainBuilder, MainContext,
 };
 
+/// Execution utilities for ERC20 gas payment transactions
 pub mod exec;
+/// Custom handler implementation for ERC20 gas payment
 pub mod handler;
 
 type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Ethereum, DynProvider>>>;
 
 // Constants
+/// USDC token address on Ethereum mainnet
 pub const TOKEN: Address = address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+/// Treasury address that receives ERC20 gas payments
 pub const TREASURY: Address = address!("0000000000000000000000000000000000000001");
 
 #[tokio::main]
@@ -130,12 +135,15 @@ fn transfer(from: Address, to: Address, amount: U256, cache_db: &mut AlloyCacheD
         .modify_cfg_chained(|cfg| {
             cfg.spec = SpecId::CANCUN;
         })
-        .modify_tx_chained(|tx| {
-            tx.caller = from;
-            tx.kind = TxKind::Call(to);
-            tx.value = amount;
-            tx.gas_price = 2;
-        })
+        .with_tx(
+            TxEnv::builder()
+                .caller(from)
+                .kind(TxKind::Call(to))
+                .value(amount)
+                .gas_price(2)
+                .build()
+                .unwrap(),
+        )
         .modify_block_chained(|b| {
             b.basefee = 1;
         })
@@ -146,6 +154,9 @@ fn transfer(from: Address, to: Address, amount: U256, cache_db: &mut AlloyCacheD
     Ok(())
 }
 
+/// Calculates the storage slot for an ERC20 balance mapping.
+/// This implements the standard Solidity mapping storage layout where
+/// slot = keccak256(abi.encode(address, slot_number))
 pub fn erc_address_storage(address: Address) -> U256 {
     keccak256((address, U256::from(4)).abi_encode()).into()
 }

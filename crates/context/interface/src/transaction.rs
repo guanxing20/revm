@@ -2,6 +2,7 @@
 mod alloy_types;
 pub mod eip2930;
 pub mod eip7702;
+mod either;
 pub mod transaction_type;
 
 pub use alloy_types::{
@@ -23,7 +24,7 @@ pub trait TransactionError: Debug + core::error::Error {}
 
 /// Main Transaction trait that abstracts and specifies all transaction currently supported by Ethereum
 ///
-/// Access to any associated type is gaited behind [`tx_type`][Transaction::tx_type] function.
+/// Access to any associated type is gated behind [`tx_type`][Transaction::tx_type] function.
 ///
 /// It can be extended to support new transaction types and only transaction types can be
 /// deprecated by not returning tx_type.
@@ -131,16 +132,6 @@ pub trait Transaction {
     ///
     /// [EIP-Set EOA account code for one transaction](https://eips.ethereum.org/EIPS/eip-7702)
     fn authorization_list(&self) -> impl Iterator<Item = Self::Authorization<'_>>;
-
-    // TODO(EOF)
-    // /// List of initcodes found in Initcode transaction. Initcodes can only be accessed
-    // /// by TXCREATE opcode to create a new EOF contract.
-    // ///
-    // /// Each transaction can contain up to [`primitives::eof::MAX_INITCODE_COUNT`] initcodes,
-    // /// with each initcode not exceeding [`primitives::MAX_INITCODE_SIZE`] bytes in size.
-    // ///
-    // /// EIP link: <https://eips.ethereum.org/EIPS/eip-7873>
-    // fn initcodes(&self) -> &[Bytes];
 
     /// Returns maximum fee that can be paid for the transaction.
     fn max_fee_per_gas(&self) -> u128 {

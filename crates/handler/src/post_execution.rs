@@ -1,14 +1,13 @@
-use super::frame_data::FrameResult;
-use context_interface::ContextTr;
+use crate::FrameResult;
 use context_interface::{
     journaled_state::JournalTr,
     result::{ExecutionResult, HaltReasonTr},
-    Block, Cfg, Database, Transaction,
+    Block, Cfg, ContextTr, Database, Transaction,
 };
 use interpreter::{Gas, InitialAndFloorGas, SuccessOrHalt};
 use primitives::{hardfork::SpecId, U256};
-use state::EvmState;
 
+/// Ensures minimum gas floor is spent according to EIP-7623.
 pub fn eip7623_check_gas_floor(gas: &mut Gas, init_and_floor_gas: InitialAndFloorGas) {
     // EIP-7623: Increase calldata cost
     // spend at least a gas_floor amount of gas.
@@ -19,6 +18,7 @@ pub fn eip7623_check_gas_floor(gas: &mut Gas, init_and_floor_gas: InitialAndFloo
     }
 }
 
+/// Calculates and applies gas refunds based on the specification.
 pub fn refund(spec: SpecId, gas: &mut Gas, eip7702_refund: i64) {
     gas.record_refund(eip7702_refund);
     // Calculate gas refund for transaction.
@@ -27,10 +27,11 @@ pub fn refund(spec: SpecId, gas: &mut Gas, eip7702_refund: i64) {
     gas.set_final_refund(spec.is_enabled_in(SpecId::LONDON));
 }
 
+/// Reimburses the caller for unused gas.
 #[inline]
 pub fn reimburse_caller<CTX: ContextTr>(
     context: &mut CTX,
-    gas: &mut Gas,
+    gas: &Gas,
     additional_refund: U256,
 ) -> Result<(), <CTX::Db as Database>::Error> {
     let basefee = context.block().basefee() as u128;
@@ -48,10 +49,11 @@ pub fn reimburse_caller<CTX: ContextTr>(
     Ok(())
 }
 
+/// Rewards the beneficiary with transaction fees.
 #[inline]
 pub fn reward_beneficiary<CTX: ContextTr>(
     context: &mut CTX,
-    gas: &mut Gas,
+    gas: &Gas,
 ) -> Result<(), <CTX::Db as Database>::Error> {
     let beneficiary = context.block().beneficiary();
     let basefee = context.block().basefee() as u128;
@@ -68,7 +70,7 @@ pub fn reward_beneficiary<CTX: ContextTr>(
     // reward beneficiary
     context.journal_mut().balance_incr(
         beneficiary,
-        U256::from(coinbase_gas_price * (gas.spent() - gas.refunded() as u64) as u128),
+        U256::from(coinbase_gas_price * gas.used() as u128),
     )?;
 
     Ok(())
@@ -77,7 +79,7 @@ pub fn reward_beneficiary<CTX: ContextTr>(
 /// Calculate last gas spent and transform internal reason to external.
 ///
 /// TODO make Journal FinalOutput more generic.
-pub fn output<CTX: ContextTr<Journal: JournalTr<State = EvmState>>, HALTREASON: HaltReasonTr>(
+pub fn output<CTX: ContextTr<Journal: JournalTr>, HALTREASON: HaltReasonTr>(
     context: &mut CTX,
     // TODO, make this more generic and nice.
     // FrameResult should be a generic that returns gas and interpreter result.
@@ -85,7 +87,7 @@ pub fn output<CTX: ContextTr<Journal: JournalTr<State = EvmState>>, HALTREASON: 
 ) -> ExecutionResult<HALTREASON> {
     // Used gas with refund calculated.
     let gas_refunded = result.gas().refunded() as u64;
-    let final_gas_used = result.gas().spent() - gas_refunded;
+    let gas_used = result.gas().used();
     let output = result.output();
     let instruction_result = result.into_interpreter_result();
 
@@ -95,24 +97,20 @@ pub fn output<CTX: ContextTr<Journal: JournalTr<State = EvmState>>, HALTREASON: 
     match SuccessOrHalt::<HALTREASON>::from(instruction_result.result) {
         SuccessOrHalt::Success(reason) => ExecutionResult::Success {
             reason,
-            gas_used: final_gas_used,
+            gas_used,
             gas_refunded,
             logs,
             output,
         },
         SuccessOrHalt::Revert => ExecutionResult::Revert {
-            gas_used: final_gas_used,
+            gas_used,
             output: output.into_data(),
         },
-        SuccessOrHalt::Halt(reason) => ExecutionResult::Halt {
-            reason,
-            gas_used: final_gas_used,
-        },
+        SuccessOrHalt::Halt(reason) => ExecutionResult::Halt { reason, gas_used },
         // Only two internal return flags.
         flag @ (SuccessOrHalt::FatalExternalError | SuccessOrHalt::Internal(_)) => {
             panic!(
-                "Encountered unexpected internal return flag: {:?} with instruction result: {:?}",
-                flag, instruction_result
+                "Encountered unexpected internal return flag: {flag:?} with instruction result: {instruction_result:?}"
             )
         }
     }

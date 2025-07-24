@@ -1,17 +1,51 @@
 use bitvec::vec::BitVec;
+use core::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+};
 use once_cell::race::OnceBox;
 use primitives::hex;
 use std::{fmt::Debug, sync::Arc};
 
-/// A table of valid `jump` destinations. Cheap to clone and memory efficient, one bit per opcode.
-#[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+/// A table of valid `jump` destinations.
+///
+/// It is immutable, cheap to clone and memory efficient, with one bit per byte in the bytecode.
+#[derive(Clone, Eq)]
 pub struct JumpTable {
-    /// Actual bit vec
-    pub table: Arc<BitVec<u8>>,
-    /// Fast pointer that skips Arc overhead
+    /// Pointer into `table` to avoid `Arc` overhead on lookup.
     table_ptr: *const u8,
-    /// Number of bits in the table
-    pub len: usize,
+    /// Number of bits in the table.
+    len: usize,
+    /// Actual bit vec
+    table: Arc<BitVec<u8>>,
+}
+
+// SAFETY: BitVec data is immutable through Arc, pointer won't be invalidated
+unsafe impl Send for JumpTable {}
+unsafe impl Sync for JumpTable {}
+
+impl PartialEq for JumpTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.table.eq(&other.table)
+    }
+}
+
+impl Hash for JumpTable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.table.hash(state);
+    }
+}
+
+impl PartialOrd for JumpTable {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for JumpTable {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.table.cmp(&other.table)
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -34,10 +68,6 @@ impl<'de> serde::Deserialize<'de> for JumpTable {
         Ok(Self::new(bitvec))
     }
 }
-
-// SAFETY: BitVec data is immutable through Arc, pointer won't be invalidated
-unsafe impl Send for JumpTable {}
-unsafe impl Sync for JumpTable {}
 
 impl Debug for JumpTable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -77,6 +107,18 @@ impl JumpTable {
         self.table.as_raw_slice()
     }
 
+    /// Gets the length of the jump map.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns true if the jump map is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// Constructs a jump map from raw bytes and length.
     ///
     /// Bit length represents number of used bits inside slice.
@@ -95,16 +137,7 @@ impl JumpTable {
         );
         let mut bitvec = BitVec::from_slice(slice);
         unsafe { bitvec.set_len(bit_len) };
-
-        let table = Arc::new(bitvec);
-        let table_ptr = table.as_raw_slice().as_ptr();
-        let len = table.len();
-
-        Self {
-            table,
-            table_ptr,
-            len,
-        }
+        Self::new(bitvec)
     }
 
     /// Checks if `pc` is a valid jump destination.
@@ -204,10 +237,10 @@ mod bench_is_valid {
         let ns_per_op = duration.as_nanos() as f64 / ITERATIONS as f64;
         let ops_per_sec = ITERATIONS as f64 / duration.as_secs_f64();
 
-        println!("{} Performance:", name);
-        println!("  Time per op: {:.2} ns", ns_per_op);
-        println!("  Ops per sec: {:.0}", ops_per_sec);
-        println!("  True count: {}", count);
+        println!("{name} Performance:");
+        println!("  Time per op: {ns_per_op:.2} ns");
+        println!("  Ops per sec: {ops_per_sec:.0}");
+        println!("  True count: {count}");
         println!();
 
         std::hint::black_box(count);

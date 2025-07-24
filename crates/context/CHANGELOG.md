@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.4](https://github.com/bluealloy/revm/compare/revm-context-v8.0.3...revm-context-v8.0.4) - 2025-07-23
+
+### Fixed
+
+- fully deprecate serde-json ([#2767](https://github.com/bluealloy/revm/pull/2767))
+
+### Other
+
+- un-Box frames ([#2761](https://github.com/bluealloy/revm/pull/2761))
+- discard generic host implementation ([#2738](https://github.com/bluealloy/revm/pull/2738))
+
+## [8.0.3](https://github.com/bluealloy/revm/compare/revm-context-v8.0.2...revm-context-v8.0.3) - 2025-07-14
+
+### Fixed
+
+- fix typo: Rename is_created_globaly to is_created_globally ([#2692](https://github.com/bluealloy/revm/pull/2692))
+
+### Other
+
+- add comprehensive tests for TxEnvBuilder ([#2690](https://github.com/bluealloy/revm/pull/2690))
+
+## [8.0.2](https://github.com/bluealloy/revm/compare/revm-context-v8.0.1...revm-context-v8.0.2) - 2025-07-03
+
+### Other
+
+- updated the following local packages: revm-bytecode, revm-state, revm-database-interface, revm-context-interface
+
+## [8.0.1](https://github.com/bluealloy/revm/compare/revm-context-v7.0.1...revm-context-v8.0.1) - 2025-06-30
+
+### Added
+
+- implement `Transaction` for `Either` ([#2662](https://github.com/bluealloy/revm/pull/2662))
+- optional_eip3541 ([#2661](https://github.com/bluealloy/revm/pull/2661))
+
+### Other
+
+- use TxEnv::builder ([#2652](https://github.com/bluealloy/revm/pull/2652))
+- fix copy-pasted inner doc comments ([#2663](https://github.com/bluealloy/revm/pull/2663))
+
+## [7.0.1](https://github.com/bluealloy/revm/compare/revm-context-v7.0.0...revm-context-v7.0.1) - 2025-06-20
+
+### Fixed
+
+- call stack_frame.clear() at end ([#2656](https://github.com/bluealloy/revm/pull/2656))
+
+## [7.0.0](https://github.com/bluealloy/revm/compare/revm-context-v6.0.0...revm-context-v7.0.0) - 2025-06-19
+
+### Added
+
+- remove EOF ([#2644](https://github.com/bluealloy/revm/pull/2644))
+- configurable contract size limit ([#2611](https://github.com/bluealloy/revm/pull/2611)) ([#2642](https://github.com/bluealloy/revm/pull/2642))
+- *(precompile)* rug/gmp-based modexp ([#2596](https://github.com/bluealloy/revm/pull/2596))
+- change blob_max_count to max_blobs_per_tx ([#2608](https://github.com/bluealloy/revm/pull/2608))
+- add optional priority fee check configuration ([#2588](https://github.com/bluealloy/revm/pull/2588))
+
+### Other
+
+- bump all deps ([#2647](https://github.com/bluealloy/revm/pull/2647))
+- include local context as generic ([#2645](https://github.com/bluealloy/revm/pull/2645))
+- re-use frame allocation ([#2636](https://github.com/bluealloy/revm/pull/2636))
+- store coinbase address separately to avoid cloning warm addresses in the common case ([#2634](https://github.com/bluealloy/revm/pull/2634))
+- optimize warm_preloaded_addresses reset ([#2625](https://github.com/bluealloy/revm/pull/2625))
+- rename `transact` methods ([#2616](https://github.com/bluealloy/revm/pull/2616))
+
 ## [6.0.0](https://github.com/bluealloy/revm/compare/revm-context-v5.0.1...revm-context-v6.0.0) - 2025-06-06
 
 ### Added

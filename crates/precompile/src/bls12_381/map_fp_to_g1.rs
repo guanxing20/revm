@@ -1,7 +1,7 @@
 //! BLS12-381 map fp to g1 precompile. More details in [`map_fp_to_g1`]
 use super::{
-    crypto_backend::{encode_g1_point, map_fp_to_g1 as blst_map_fp_to_g1, read_fp},
-    utils::remove_fp_padding,
+    crypto_backend::map_fp_to_g1_bytes,
+    utils::{pad_g1_point, remove_fp_padding},
 };
 use crate::bls12_381_const::{MAP_FP_TO_G1_ADDRESS, MAP_FP_TO_G1_BASE_GAS_FEE, PADDED_FP_LENGTH};
 use crate::{PrecompileError, PrecompileOutput, PrecompileResult, PrecompileWithAddress};
@@ -13,7 +13,7 @@ pub const PRECOMPILE: PrecompileWithAddress =
 /// Field-to-curve call expects 64 bytes as an input that is interpreted as an
 /// element of Fp. Output of this call is 128 bytes and is an encoded G1 point.
 /// See also: <https://eips.ethereum.org/EIPS/eip-2537#abi-for-mapping-fp-element-to-g1-point>
-pub fn map_fp_to_g1(input: &[u8], gas_limit: u64) -> PrecompileResult {
+pub fn map_fp_to_g1(input: &[u8], gas_limit: u64, _crypto: &dyn crate::Crypto) -> PrecompileResult {
     if MAP_FP_TO_G1_BASE_GAS_FEE > gas_limit {
         return Err(PrecompileError::OutOfGas);
     }
@@ -26,11 +26,17 @@ pub fn map_fp_to_g1(input: &[u8], gas_limit: u64) -> PrecompileResult {
     }
 
     let input_p0 = remove_fp_padding(input)?;
-    let fp = read_fp(input_p0)?;
-    let p_aff = blst_map_fp_to_g1(&fp);
 
-    let out = encode_g1_point(&p_aff);
-    Ok(PrecompileOutput::new(MAP_FP_TO_G1_BASE_GAS_FEE, out.into()))
+    // Get unpadded result from crypto backend
+    let unpadded_result = map_fp_to_g1_bytes(input_p0)?;
+
+    // Pad the result for EVM compatibility
+    let padded_result = pad_g1_point(&unpadded_result);
+
+    Ok(PrecompileOutput::new(
+        MAP_FP_TO_G1_BASE_GAS_FEE,
+        padded_result.into(),
+    ))
 }
 
 #[cfg(test)]
@@ -41,7 +47,7 @@ mod test {
     #[test]
     fn sanity_test() {
         let input = Bytes::from(hex!("000000000000000000000000000000006900000000000000636f6e7472616374595a603f343061cd305a03f40239f5ffff31818185c136bc2595f2aa18e08f17"));
-        let fail = map_fp_to_g1(&input, MAP_FP_TO_G1_BASE_GAS_FEE);
+        let fail = map_fp_to_g1(&input, MAP_FP_TO_G1_BASE_GAS_FEE, &crate::DefaultCrypto);
         assert_eq!(
             fail,
             Err(PrecompileError::Other("non-canonical fp value".to_string()))

@@ -40,12 +40,18 @@ pub struct Cmd {
     /// Overrides the positional `bytecode` argument.
     #[arg(long)]
     path: Option<PathBuf>,
+
     /// Whether to run in benchmarking mode
     #[arg(long)]
     bench: bool,
+
     /// Hex-encoded input/calldata bytes
     #[arg(long, default_value = "")]
     input: String,
+    /// Gas limit
+    #[arg(long, default_value = "1000000000")]
+    gas_limit: u64,
+
     /// Whether to print the state
     #[arg(long)]
     state: bool,
@@ -87,13 +93,14 @@ impl Cmd {
             .with_db(db)
             .build_mainnet_with_inspector(TracerEip3155::new(Box::new(std::io::stdout())));
 
-        let tx = TxEnv {
-            caller: BENCH_CALLER,
-            kind: TxKind::Call(BENCH_TARGET),
-            data: input,
-            nonce,
-            ..Default::default()
-        };
+        let tx = TxEnv::builder()
+            .caller(BENCH_CALLER)
+            .kind(TxKind::Call(BENCH_TARGET))
+            .data(input)
+            .nonce(nonce)
+            .gas_limit(self.gas_limit)
+            .build()
+            .unwrap();
 
         if self.bench {
             let mut criterion = criterion::Criterion::default()
@@ -124,10 +131,10 @@ impl Cmd {
         let time = time.elapsed();
 
         if self.state {
-            println!("State: {:#?}", state);
+            println!("State: {state:#?}");
         }
 
-        println!("Elapsed: {:?}", time);
+        println!("Elapsed: {time:?}");
         Ok(())
     }
 }
