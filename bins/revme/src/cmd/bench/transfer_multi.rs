@@ -1,12 +1,12 @@
-use context::TxEnv;
 use criterion::Criterion;
-use database::{InMemoryDB, BENCH_CALLER, BENCH_TARGET};
 use revm::{
+    context::TxEnv,
+    database::{InMemoryDB, BENCH_CALLER, BENCH_TARGET},
     interpreter::instructions::utility::IntoAddress,
     primitives::{TxKind, U256},
+    state::AccountInfo,
     Context, ExecuteCommitEvm, ExecuteEvm, MainBuilder, MainContext,
 };
-use state::AccountInfo;
 
 pub fn run(criterion: &mut Criterion) {
     let mut db = InMemoryDB::default();
@@ -51,10 +51,7 @@ pub fn run(criterion: &mut Criterion) {
 
     criterion.bench_function("transact_commit_1000txs", |b| {
         b.iter_batched(
-            || {
-                // create transaction inputs
-                txs.clone()
-            },
+            || txs.clone(),
             |inputs| {
                 for tx in inputs {
                     let _ = evm.transact_commit(tx).unwrap();
@@ -66,14 +63,11 @@ pub fn run(criterion: &mut Criterion) {
 
     criterion.bench_function("transact_1000tx_commit_inner_every_40", |b| {
         b.iter_batched(
-            || {
-                // create transaction inputs
-                txs.clone()
-            },
+            || txs.clone(),
             |inputs| {
                 for (i, tx) in inputs.into_iter().enumerate() {
                     let _ = evm.transact_one(tx).unwrap();
-                    if i % 40 == 0 {
+                    if i.is_multiple_of(40) {
                         evm.commit_inner();
                     }
                 }

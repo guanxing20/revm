@@ -20,7 +20,22 @@ pub fn validate_env<CTX: ContextTr, ERROR: From<InvalidHeader> + From<InvalidTra
     if spec.is_enabled_in(SpecId::CANCUN) && context.block().blob_excess_gas_and_price().is_none() {
         return Err(InvalidHeader::ExcessBlobGasNotSet.into());
     }
-    validate_tx_env::<CTX, InvalidTransaction>(context, spec).map_err(Into::into)
+    validate_tx_env::<CTX>(context, spec).map_err(Into::into)
+}
+
+/// Validate legacy transaction gas price against basefee.
+#[inline]
+pub fn validate_legacy_gas_price(
+    gas_price: u128,
+    base_fee: Option<u128>,
+) -> Result<(), InvalidTransaction> {
+    // Gas price must be at least the basefee.
+    if let Some(base_fee) = base_fee {
+        if gas_price < base_fee {
+            return Err(InvalidTransaction::GasPriceLessThanBasefee);
+        }
+    }
+    Ok(())
 }
 
 /// Validate transaction that has EIP-1559 priority fee
@@ -55,7 +70,10 @@ pub fn validate_eip4844_tx(
 ) -> Result<(), InvalidTransaction> {
     // Ensure that the user was willing to at least pay the current blob gasprice
     if block_blob_gas_price > max_blob_fee {
-        return Err(InvalidTransaction::BlobGasPriceGreaterThanMax);
+        return Err(InvalidTransaction::BlobGasPriceGreaterThanMax {
+            block_blob_gas_price,
+            tx_max_fee_per_blob_gas: max_blob_fee,
+        });
     }
 
     // There must be at least one blob
@@ -84,7 +102,7 @@ pub fn validate_eip4844_tx(
 }
 
 /// Validate transaction against block and configuration for mainnet.
-pub fn validate_tx_env<CTX: ContextTr, Error>(
+pub fn validate_tx_env<CTX: ContextTr>(
     context: CTX,
     spec_id: SpecId,
 ) -> Result<(), InvalidTransaction> {
@@ -126,25 +144,14 @@ pub fn validate_tx_env<CTX: ContextTr, Error>(
 
     match tx_type {
         TransactionType::Legacy => {
-            // Gas price must be at least the basefee.
-            if let Some(base_fee) = base_fee {
-                if tx.gas_price() < base_fee {
-                    return Err(InvalidTransaction::GasPriceLessThanBasefee);
-                }
-            }
+            validate_legacy_gas_price(tx.gas_price(), base_fee)?;
         }
         TransactionType::Eip2930 => {
             // Enabled in BERLIN hardfork
             if !spec_id.is_enabled_in(SpecId::BERLIN) {
                 return Err(InvalidTransaction::Eip2930NotSupported);
             }
-
-            // Gas price must be at least the basefee.
-            if let Some(base_fee) = base_fee {
-                if tx.gas_price() < base_fee {
-                    return Err(InvalidTransaction::GasPriceLessThanBasefee);
-                }
-            }
+            validate_legacy_gas_price(tx.gas_price(), base_fee)?;
         }
         TransactionType::Eip1559 => {
             if !spec_id.is_enabled_in(SpecId::LONDON) {
@@ -195,32 +202,6 @@ pub fn validate_tx_env<CTX: ContextTr, Error>(
                 return Err(InvalidTransaction::EmptyAuthorizationList);
             }
         }
-        /* // TODO(EOF) EOF removed from spec.
-        TransactionType::Eip7873 => {
-            // Check if EIP-7873 transaction is enabled.
-            if !spec_id.is_enabled_in(SpecId::OSAKA) {
-            return Err(InvalidTransaction::Eip7873NotSupported);
-            }
-            // validate chain id
-            if Some(context.cfg().chain_id()) != tx.chain_id() {
-                return Err(InvalidTransaction::InvalidChainId);
-            }
-
-            // validate initcodes.
-            validate_eip7873_initcodes(tx.initcodes())?;
-
-            // InitcodeTransaction is invalid if the to is nil.
-            if tx.kind().is_create() {
-                return Err(InvalidTransaction::Eip7873MissingTarget);
-            }
-
-            validate_priority_fee_tx(
-                tx.max_fee_per_gas(),
-                tx.max_priority_fee_per_gas().unwrap_or_default(),
-                base_fee,
-            )?;
-        }
-        */
         TransactionType::Custom => {
             // Custom transaction type check is not done here.
         }
@@ -243,50 +224,17 @@ pub fn validate_tx_env<CTX: ContextTr, Error>(
     Ok(())
 }
 
-/* TODO(EOF)
-/// Validate Initcode Transaction initcode list, return error if any of the following conditions are met:
-/// * there are zero entries in initcodes, or if there are more than MAX_INITCODE_COUNT entries.
-/// * any entry in initcodes is zero length, or if any entry exceeds MAX_INITCODE_SIZE.
-/// * the to is nil.
-pub fn validate_eip7873_initcodes(initcodes: &[Bytes]) -> Result<(), InvalidTransaction> {
-    let mut i = 0;
-    for initcode in initcodes {
-        // InitcodeTransaction is invalid if any entry in initcodes is zero length
-        if initcode.is_empty() {
-            return Err(InvalidTransaction::Eip7873EmptyInitcode { i });
-        }
-
-        // or if any entry exceeds MAX_INITCODE_SIZE.
-        if initcode.len() > MAX_INITCODE_SIZE {
-            return Err(InvalidTransaction::Eip7873InitcodeTooLarge {
-                i,
-                size: initcode.len(),
-            });
-        }
-
-        i += 1;
-    }
-
-    // InitcodeTransaction is invalid if there are zero entries in initcodes,
-    if i == 0 {
-        return Err(InvalidTransaction::Eip7873EmptyInitcodeList);
-    }
-
-    // or if there are more than MAX_INITCODE_COUNT entries.
-    if i > MAX_INITCODE_COUNT {
-        return Err(InvalidTransaction::Eip7873TooManyInitcodes { size: i });
-    }
-
-    Ok(())
-}
-*/
-
 /// Validate initial transaction gas.
 pub fn validate_initial_tx_gas(
     tx: impl Transaction,
     spec: SpecId,
+    is_eip7623_disabled: bool,
 ) -> Result<InitialAndFloorGas, InvalidTransaction> {
-    let gas = gas::calculate_initial_tx_gas_for_tx(&tx, spec);
+    let mut gas = gas::calculate_initial_tx_gas_for_tx(&tx, spec);
+
+    if is_eip7623_disabled {
+        gas.floor_gas = 0
+    }
 
     // Additional check to see if limit is big enough to cover initial gas.
     if gas.initial_gas > tx.gas_limit() {
@@ -310,14 +258,15 @@ pub fn validate_initial_tx_gas(
 
 #[cfg(test)]
 mod tests {
-    use crate::{ExecuteCommitEvm, MainBuilder, MainContext};
+    use crate::{api::ExecuteEvm, ExecuteCommitEvm, MainBuilder, MainContext};
     use bytecode::opcode;
     use context::{
         result::{EVMError, ExecutionResult, HaltReason, InvalidTransaction, Output},
-        Context, TxEnv,
+        Context, ContextTr, TxEnv,
     };
     use database::{CacheDB, EmptyDB};
-    use primitives::{address, eip3860, eip7907, hardfork::SpecId, Bytes, TxKind};
+    use primitives::{address, eip3860, eip7907, hardfork::SpecId, Bytes, TxKind, B256};
+    use state::{AccountInfo, Bytecode};
 
     fn deploy_contract(
         bytecode: Bytes,
@@ -389,13 +338,16 @@ mod tests {
         ];
         let bytecode: Bytes = init_code.into();
         let result = deploy_contract(bytecode, Some(SpecId::OSAKA));
-        assert!(matches!(
-            result,
-            Ok(ExecutionResult::Halt {
-                reason: HaltReason::CreateContractSizeLimit,
-                ..
-            },)
-        ));
+        assert!(
+            matches!(
+                result,
+                Ok(ExecutionResult::Halt {
+                    reason: HaltReason::CreateContractSizeLimit,
+                    ..
+                },)
+            ),
+            "{result:?}"
+        );
     }
 
     #[test]
@@ -411,13 +363,16 @@ mod tests {
         ];
         let bytecode: Bytes = init_code.into();
         let result = deploy_contract(bytecode, Some(SpecId::PRAGUE));
-        assert!(matches!(
-            result,
-            Ok(ExecutionResult::Halt {
-                reason: HaltReason::CreateContractSizeLimit,
-                ..
-            },)
-        ));
+        assert!(
+            matches!(
+                result,
+                Ok(ExecutionResult::Halt {
+                    reason: HaltReason::CreateContractSizeLimit,
+                    ..
+                },)
+            ),
+            "{result:?}"
+        );
     }
 
     #[test]
@@ -603,5 +558,139 @@ mod tests {
             }
             _ => panic!("execution result is not Success"),
         }
+    }
+
+    #[test]
+    fn test_transact_many_with_transaction_index_error() {
+        use context::result::TransactionIndexedError;
+
+        let ctx = Context::mainnet().with_db(CacheDB::<EmptyDB>::default());
+        let mut evm = ctx.build_mainnet();
+
+        // Create a transaction that will fail (invalid gas limit)
+        let invalid_tx = TxEnv::builder()
+            .gas_limit(0) // This will cause a validation error
+            .build()
+            .unwrap();
+
+        // Create a valid transaction
+        let valid_tx = TxEnv::builder().gas_limit(100000).build().unwrap();
+
+        // Test that the first transaction fails with index 0
+        let result = evm.transact_many([invalid_tx.clone()].into_iter());
+        assert!(matches!(
+            result,
+            Err(TransactionIndexedError {
+                transaction_index: 0,
+                ..
+            })
+        ));
+
+        // Test that the second transaction fails with index 1
+        let result = evm.transact_many([valid_tx, invalid_tx].into_iter());
+        assert!(matches!(
+            result,
+            Err(TransactionIndexedError {
+                transaction_index: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn test_transact_many_success() {
+        use primitives::{address, U256};
+
+        let ctx = Context::mainnet().with_db(CacheDB::<EmptyDB>::default());
+        let mut evm = ctx.build_mainnet();
+
+        // Add balance to the caller account
+        let caller = address!("0x0000000000000000000000000000000000000001");
+        evm.db_mut().insert_account_info(
+            caller,
+            AccountInfo::new(
+                U256::from(1000000000000000000u64),
+                0,
+                B256::ZERO,
+                Bytecode::new(),
+            ),
+        );
+
+        // Create valid transactions with proper data
+        let tx1 = TxEnv::builder()
+            .caller(caller)
+            .gas_limit(100000)
+            .gas_price(20_000_000_000u128)
+            .nonce(0)
+            .build()
+            .unwrap();
+
+        let tx2 = TxEnv::builder()
+            .caller(caller)
+            .gas_limit(100000)
+            .gas_price(20_000_000_000u128)
+            .nonce(1)
+            .build()
+            .unwrap();
+
+        // Test that all transactions succeed
+        let result = evm.transact_many([tx1, tx2].into_iter());
+        if let Err(e) = &result {
+            println!("Error: {e:?}");
+        }
+        let outputs = result.expect("All transactions should succeed");
+        assert_eq!(outputs.len(), 2);
+    }
+
+    #[test]
+    fn test_transact_many_finalize_with_error() {
+        use context::result::TransactionIndexedError;
+
+        let ctx = Context::mainnet().with_db(CacheDB::<EmptyDB>::default());
+        let mut evm = ctx.build_mainnet();
+
+        // Create transactions where the second one fails
+        let valid_tx = TxEnv::builder().gas_limit(100000).build().unwrap();
+
+        let invalid_tx = TxEnv::builder()
+            .gas_limit(0) // This will cause a validation error
+            .build()
+            .unwrap();
+
+        // Test that transact_many_finalize returns the error with correct index
+        let result = evm.transact_many_finalize([valid_tx, invalid_tx].into_iter());
+        assert!(matches!(
+            result,
+            Err(TransactionIndexedError {
+                transaction_index: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn test_transact_many_commit_with_error() {
+        use context::result::TransactionIndexedError;
+
+        let ctx = Context::mainnet().with_db(CacheDB::<EmptyDB>::default());
+        let mut evm = ctx.build_mainnet();
+
+        // Create transactions where the first one fails
+        let invalid_tx = TxEnv::builder()
+            .gas_limit(0) // This will cause a validation error
+            .build()
+            .unwrap();
+
+        let valid_tx = TxEnv::builder().gas_limit(100000).build().unwrap();
+
+        // Test that transact_many_commit returns the error with correct index
+        let result = evm.transact_many_commit([invalid_tx, valid_tx].into_iter());
+        assert!(matches!(
+            result,
+            Err(TransactionIndexedError {
+                transaction_index: 0,
+                ..
+            })
+        ));
     }
 }

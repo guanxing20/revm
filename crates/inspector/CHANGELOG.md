@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0](https://github.com/bluealloy/revm/compare/revm-inspector-v11.2.0...revm-inspector-v12.0.0) - 2025-10-30
+
+### Other
+
+- remove redundant alloy-eip7702 from handler dev-dependencies ([#3105](https://github.com/bluealloy/revm/pull/3105))
+- *(inspector)* remove redundant EthInterpreter import in either.rs ([#3093](https://github.com/bluealloy/revm/pull/3093))
+
+## [11.2.0](https://github.com/bluealloy/revm/compare/revm-inspector-v11.1.2...revm-inspector-v11.2.0) - 2025-10-17
+
+### Other
+
+- updated the following local packages: revm-interpreter, revm-handler
+
+## [11.1.2](https://github.com/bluealloy/revm/compare/revm-inspector-v11.1.1...revm-inspector-v11.1.2) - 2025-10-15
+
+### Other
+
+- updated the following local packages: revm-state, revm-database-interface, revm-context, revm-database, revm-interpreter, revm-handler
+
+## [11.1.1](https://github.com/bluealloy/revm/compare/revm-inspector-v11.1.0...revm-inspector-v11.1.1) - 2025-10-15
+
+### Other
+
+- updated the following local packages: revm-primitives, revm-context, revm-interpreter, revm-handler, revm-state, revm-database-interface, revm-database
+
+## [11.1.0](https://github.com/bluealloy/revm/compare/revm-inspector-v11.0.0...revm-inspector-v11.1.0) - 2025-10-09
+
+### Other
+
+- use Self::default in fn new for CountInspector ([#3065](https://github.com/bluealloy/revm/pull/3065))
+
+## [11.0.0](https://github.com/bluealloy/revm/compare/revm-inspector-v10.0.1...revm-inspector-v11.0.0) - 2025-10-07
+
+### Added
+
+- detach EthFrame from InspectorEvmTr ([#3038](https://github.com/bluealloy/revm/pull/3038))
+- *(revme)* ef blockchain tests cli ([#2935](https://github.com/bluealloy/revm/pull/2935))
+
+### Fixed
+
+- *(inspector)* remove redundant pc()/opcode() calls in step_end ([#3023](https://github.com/bluealloy/revm/pull/3023))
+- Apply spelling corrections from PRs #2926, #2915, #2908 ([#2978](https://github.com/bluealloy/revm/pull/2978))
+
+### Other
+
+- changelog update for v87 ([#3056](https://github.com/bluealloy/revm/pull/3056))
+- add boundless ([#3043](https://github.com/bluealloy/revm/pull/3043))
+- EvmTr and InspectorEvmTr receive all/all_mut fn ([#3037](https://github.com/bluealloy/revm/pull/3037))
+- *(inspector)* remove unnecessary mutable borrow in GasInspector::step_end ([#3035](https://github.com/bluealloy/revm/pull/3035))
+- add SECURITY.md ([#2956](https://github.com/bluealloy/revm/pull/2956))
+- *(inspector)* remove dead skip flag ([#2951](https://github.com/bluealloy/revm/pull/2951))
+
+## [10.0.1](https://github.com/bluealloy/revm/compare/revm-inspector-v10.0.0...revm-inspector-v10.0.1) - 2025-09-23
+
+### Other
+
+- updated the following local packages: revm-context, revm-interpreter, revm-handler
+
+## [10.0.0](https://github.com/bluealloy/revm/compare/revm-inspector-v9.1.0...revm-inspector-v10.0.0) - 2025-08-23
+
+### Other
+
+- updated the following local packages: revm-database-interface, revm-context, revm-database, revm-interpreter, revm-handler, revm-state
+
+## [9.1.0](https://github.com/bluealloy/revm/compare/revm-inspector-v9.0.0...revm-inspector-v9.1.0) - 2025-08-12
+
+### Added
+
+- impl inspector for tuple ([#2871](https://github.com/bluealloy/revm/pull/2871))
+
+### Other
+
+- Aggregate changes from PRs #2866, #2867, and #2874 ([#2876](https://github.com/bluealloy/revm/pull/2876))
+- small performance and safety improvements ([#2868](https://github.com/bluealloy/revm/pull/2868))
+
+## [9.0.0](https://github.com/bluealloy/revm/compare/revm-inspector-v8.1.0...revm-inspector-v9.0.0) - 2025-08-06
+
+### Added
+
+- fix renamed functions for system_call ([#2824](https://github.com/bluealloy/revm/pull/2824))
+- add system transaction inspection support ([#2808](https://github.com/bluealloy/revm/pull/2808))
+
+### Other
+
+- update README.md ([#2842](https://github.com/bluealloy/revm/pull/2842))
+- fix inspector, cleanup loop ([#2797](https://github.com/bluealloy/revm/pull/2797))
+- improve inspector loop ([#2776](https://github.com/bluealloy/revm/pull/2776))
+- add rust-version and note about MSRV ([#2789](https://github.com/bluealloy/revm/pull/2789))
+
 ## [8.1.0](https://github.com/bluealloy/revm/compare/revm-inspector-v8.0.3...revm-inspector-v8.1.0) - 2025-07-23
 
 ### Added

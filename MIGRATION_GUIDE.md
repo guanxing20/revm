@@ -1,4 +1,89 @@
-# v82 tag (revm v27.1.0) from v81 tag (revm v27.0.3)
+
+# v95 tag ( revm v31.0.0)
+
+* Cfg added `memory_limit()` function
+* `JournaledAccount` have been added that wraps account changes, touching and creating journal entry.
+  * Past function that fetches account now return a ref and new function `load_account_mut` now return `JournaledAccount`
+  * `JournalEntry` type is added to `JournalTr` so JournaledAccount can create it.
+* `JournalTr::load_account_code` is deprecated/renamed to `JournalTr::load_account_with_code`
+* `JournalTr::warm_account_and_storage` and `JournalTr::warm_account` are removed as access list is now separate from the main
+  Journal EvmState. Function that imports access list to the Journal is `JournalTr::warm_access_list`
+
+# v94 tag ( op-revm )
+
+No breaking changes
+
+# v93 tag ( op-revm )
+
+No breaking changes
+
+# v93 tag ( revm v30.1.0)
+
+No breaking changes
+
+# v92 tag ( revm v30.1.2)
+
+No breaking changes
+
+# v91 tag ( revm v30.1.1)
+
+No breaking changes
+
+# v90 tag ( revm v30.1.0)
+
+* Removal of some deprecated functions. `into_plain_state`, `regenerate_hash` were deprecated few releases ago.
+
+# v89 tag ( op-revm)
+
+No breaking changes
+
+# v88 tag (revm v30.0.0)
+
+* `ContextTr`, `EvmTr` gained `all_mut()` and `all()` functions.
+  * `InspectorEvmTr` got `all_inspector` and `all_mut_inspector` functions.
+  * For custom Evm, you only need to implement `all_*` functions.
+* `InspectorFrame` got changed to allow CustomFrame to be added.
+  * If there is no need for inspection `fn eth_frame` can return None.
+* `kzg-rs` feature and library removed. Default KZG implementation is now c-kzg.
+  * for no-std variant, arkworks lib is used.
+* Opcodes that load account/storage will not load item if there is not enough gas for cold load.
+  * This is in preparation for BAL.
+  * Journal functions for loading now have skip_cold_load bool.
+* `libsecp256k1` parity library is deprecated and removed.
+* `JumpTable` internal representation changed from `BitVec` to `Bytes`. No changes in API.
+* `SpecId` enum gained new `Amsterdam` variant and `OpSpecId` gained `Jovian` variant.
+* `SELFDESTRUCT` constant renamed to `SELFDESTRUCT_REFUND`.
+* `FrameStack::push` and `FrameStack::end_init` marked as `unsafe` as it can cause UB.
+* First precompile error is now bubble up with detailed error messages. New `PrecompileError` variants added.
+* Batch execution errors now include transaction index.
+* `CallInput` now contains bytecode that is going to be executed (Previously it had address).
+  * This allows skipping double bytecode fetching.
+* `InvalidTransaction` enum gained `Str(Cow<'static, str>)` variant for custom error messages.
+* `calc_excess_blob_gas` and `calc_excess_blob_gas` removes as they are unused and not accurate for Prague.
+
+# v86 tag (revm v29.0.0)
+
+* `PrecompileWithAddress` is renamed to `Precompile` and it became a struct.
+  * `Precompile` contains`PrecompileId`, `Address` and function.
+  * The reason is adding `PrecompileId` as it is needed for fusaka hardfork
+
+# v85 tag (revm v28.0.1) from v84 tag (revm v28.0.0)
+
+Forward compatible version.
+
+# v84 tag (revm v28.0.0) from v83 tag (revm v27.1.0)
+
+* `SystemCallEvm` functions got renamed and old ones are deprecated. Renaming is done to align it with other API calls.
+   * `transact_system_call_finalize` is now `system_call`.
+   * `transact_system_call` is now `system_call_one`.
+* `ExtBytecode::regenerate_hash` got deprecated in support for `get_or_calculate_hash` or `calculate_hash`.
+* Precompiles:
+  * Bn128 renamed to Bn254. https://github.com/ethereum/EIPs/pull/10029#issue-3240867404
+* `InstructionResult` now starts from 1 (previous 0) for perf purposes.
+* In `JournalInner` previous `precompiles`, `warm_coinbase_address` and `warm_preloaded_addresses` pub fields are now moved to `warm_addresses` to encapsulate addresses that are warm by default. All access list account are all loaded from database.
+
+
+# v83 tag (revm v27.1.0) from v82 tag (revm v27.0.3)
 
 * `ContextTr` gained `Host` supertrait.
   * Previously Host was implemented for any T that has ContextTr, this restricts specializations.

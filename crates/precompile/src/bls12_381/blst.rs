@@ -2,6 +2,7 @@
 
 use super::{G1Point, G2Point, PairingPair};
 use crate::{
+    bls12_381::{G1PointScalar, G2PointScalar},
     bls12_381_const::{FP_LENGTH, G1_LENGTH, G2_LENGTH, SCALAR_LENGTH, SCALAR_LENGTH_BITS},
     PrecompileError,
 };
@@ -13,7 +14,6 @@ use blst::{
     blst_p2_affine, blst_p2_affine_in_g2, blst_p2_affine_on_curve, blst_p2_from_affine,
     blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, MultiPoint,
 };
-use std::string::ToString;
 use std::vec::Vec;
 
 // Big-endian non-Montgomery form.
@@ -24,7 +24,7 @@ const MODULUS_REPR: [u8; 48] = [
 ];
 
 #[inline]
-fn p1_to_affine(p: &blst_p1) -> blst_p1_affine {
+pub(crate) fn p1_to_affine(p: &blst_p1) -> blst_p1_affine {
     let mut p_affine = blst_p1_affine::default();
     // SAFETY: both inputs are valid blst types
     unsafe { blst_p1_to_affine(&mut p_affine, p) };
@@ -32,7 +32,7 @@ fn p1_to_affine(p: &blst_p1) -> blst_p1_affine {
 }
 
 #[inline]
-fn p1_from_affine(p_affine: &blst_p1_affine) -> blst_p1 {
+pub(crate) fn p1_from_affine(p_affine: &blst_p1_affine) -> blst_p1 {
     let mut p = blst_p1::default();
     // SAFETY: both inputs are valid blst types
     unsafe { blst_p1_from_affine(&mut p, p_affine) };
@@ -40,7 +40,7 @@ fn p1_from_affine(p_affine: &blst_p1_affine) -> blst_p1 {
 }
 
 #[inline]
-fn p1_add_or_double(p: &blst_p1, p_affine: &blst_p1_affine) -> blst_p1 {
+pub(crate) fn p1_add_or_double(p: &blst_p1, p_affine: &blst_p1_affine) -> blst_p1 {
     let mut result = blst_p1::default();
     // SAFETY: all inputs are valid blst types
     unsafe { blst_p1_add_or_double_affine(&mut result, p, p_affine) };
@@ -48,7 +48,7 @@ fn p1_add_or_double(p: &blst_p1, p_affine: &blst_p1_affine) -> blst_p1 {
 }
 
 #[inline]
-fn p2_to_affine(p: &blst_p2) -> blst_p2_affine {
+pub(crate) fn p2_to_affine(p: &blst_p2) -> blst_p2_affine {
     let mut p_affine = blst_p2_affine::default();
     // SAFETY: both inputs are valid blst types
     unsafe { blst_p2_to_affine(&mut p_affine, p) };
@@ -56,7 +56,7 @@ fn p2_to_affine(p: &blst_p2) -> blst_p2_affine {
 }
 
 #[inline]
-fn p2_from_affine(p_affine: &blst_p2_affine) -> blst_p2 {
+pub(crate) fn p2_from_affine(p_affine: &blst_p2_affine) -> blst_p2 {
     let mut p = blst_p2::default();
     // SAFETY: both inputs are valid blst types
     unsafe { blst_p2_from_affine(&mut p, p_affine) };
@@ -64,7 +64,7 @@ fn p2_from_affine(p_affine: &blst_p2_affine) -> blst_p2 {
 }
 
 #[inline]
-fn p2_add_or_double(p: &blst_p2, p_affine: &blst_p2_affine) -> blst_p2 {
+pub(crate) fn p2_add_or_double(p: &blst_p2, p_affine: &blst_p2_affine) -> blst_p2 {
     let mut result = blst_p2::default();
     // SAFETY: all inputs are valid blst types
     unsafe { blst_p2_add_or_double_affine(&mut result, p, p_affine) };
@@ -107,7 +107,7 @@ fn p2_add_affine(a: &blst_p2_affine, b: &blst_p2_affine) -> blst_p2_affine {
 ///
 /// Note: The scalar is expected to be in Big Endian format.
 #[inline]
-fn p1_scalar_mul(p: &blst_p1_affine, scalar: &blst_scalar) -> blst_p1_affine {
+pub(crate) fn p1_scalar_mul(p: &blst_p1_affine, scalar: &blst_scalar) -> blst_p1_affine {
     // Convert point to Jacobian coordinates
     let p_jacobian = p1_from_affine(p);
 
@@ -134,7 +134,7 @@ fn p1_scalar_mul(p: &blst_p1_affine, scalar: &blst_scalar) -> blst_p1_affine {
 ///
 /// Note: The scalar is expected to be in Big Endian format.
 #[inline]
-fn p2_scalar_mul(p: &blst_p2_affine, scalar: &blst_scalar) -> blst_p2_affine {
+pub(crate) fn p2_scalar_mul(p: &blst_p2_affine, scalar: &blst_scalar) -> blst_p2_affine {
     // Convert point to Jacobian coordinates
     let p_jacobian = p2_from_affine(p);
 
@@ -307,7 +307,7 @@ fn is_fp12_one(f: &blst_fp12) -> bool {
 /// pairing_check performs a pairing check on a list of G1 and G2 point pairs and
 /// returns true if the result is equal to the identity element.
 #[inline]
-fn pairing_check(pairs: &[(blst_p1_affine, blst_p2_affine)]) -> bool {
+pub(crate) fn pairing_check(pairs: &[(blst_p1_affine, blst_p2_affine)]) -> bool {
     // When no inputs are given, we return true
     // This case can only trigger, if the initial pairing components
     // all had, either the G1 element as the point at infinity
@@ -381,9 +381,7 @@ fn decode_g1_on_curve(
     //
     // SAFETY: Out is a blst value.
     if unsafe { !blst_p1_affine_on_curve(&out) } {
-        return Err(PrecompileError::Other(
-            "Element not on G1 curve".to_string(),
-        ));
+        return Err(PrecompileError::Bls12381G1NotOnCurve);
     }
 
     Ok(out)
@@ -435,7 +433,7 @@ fn _extract_g1_input(
         // As endomorphism acceleration requires input on the correct subgroup, implementers MAY
         // use endomorphism acceleration.
         if unsafe { !blst_p1_affine_in_g1(&out) } {
-            return Err(PrecompileError::Other("Element not in G1".to_string()));
+            return Err(PrecompileError::Bls12381G1NotInSubgroup);
         }
     }
     Ok(out)
@@ -480,9 +478,7 @@ fn decode_g2_on_curve(
     //
     // SAFETY: Out is a blst value.
     if unsafe { !blst_p2_affine_on_curve(&out) } {
-        return Err(PrecompileError::Other(
-            "Element not on G2 curve".to_string(),
-        ));
+        return Err(PrecompileError::Bls12381G2NotOnCurve);
     }
 
     Ok(out)
@@ -558,7 +554,7 @@ fn _extract_g2_input(
         // As endomorphism acceleration requires input on the correct subgroup, implementers MAY
         // use endomorphism acceleration.
         if unsafe { !blst_p2_affine_in_g2(&out) } {
-            return Err(PrecompileError::Other("Element not in G2".to_string()));
+            return Err(PrecompileError::Bls12381G2NotInSubgroup);
         }
     }
     Ok(out)
@@ -570,7 +566,7 @@ fn _extract_g2_input(
 /// Note: The field element is expected to be in big endian format.
 fn read_fp(input: &[u8; FP_LENGTH]) -> Result<blst_fp, PrecompileError> {
     if !is_valid_be(input) {
-        return Err(PrecompileError::Other("non-canonical fp value".to_string()));
+        return Err(PrecompileError::NonCanonicalFp);
     }
     let mut fp = blst_fp::default();
     // SAFETY: `input` has fixed length, and `fp` is a blst value.
@@ -594,10 +590,7 @@ fn read_fp(input: &[u8; FP_LENGTH]) -> Result<blst_fp, PrecompileError> {
 ///   `q`.
 fn read_scalar(input: &[u8]) -> Result<blst_scalar, PrecompileError> {
     if input.len() != SCALAR_LENGTH {
-        return Err(PrecompileError::Other(format!(
-            "Input should be {SCALAR_LENGTH} bytes, was {}",
-            input.len()
-        )));
+        return Err(PrecompileError::Bls12381ScalarInputLength);
     }
 
     let mut out = blst_scalar::default();
@@ -622,7 +615,7 @@ fn is_valid_be(input: &[u8; 48]) -> bool {
 
 /// Performs point addition on two G1 points taking byte coordinates.
 #[inline]
-pub(super) fn p1_add_affine_bytes(
+pub(crate) fn p1_add_affine_bytes(
     a: G1Point,
     b: G1Point,
 ) -> Result<[u8; G1_LENGTH], crate::PrecompileError> {
@@ -643,7 +636,7 @@ pub(super) fn p1_add_affine_bytes(
 
 /// Performs point addition on two G2 points taking byte coordinates.
 #[inline]
-pub(super) fn p2_add_affine_bytes(
+pub(crate) fn p2_add_affine_bytes(
     a: G2Point,
     b: G2Point,
 ) -> Result<[u8; G2_LENGTH], crate::PrecompileError> {
@@ -664,7 +657,7 @@ pub(super) fn p2_add_affine_bytes(
 
 /// Maps a field element to a G1 point from bytes
 #[inline]
-pub(super) fn map_fp_to_g1_bytes(
+pub(crate) fn map_fp_to_g1_bytes(
     fp_bytes: &[u8; FP_LENGTH],
 ) -> Result<[u8; G1_LENGTH], crate::PrecompileError> {
     let fp = read_fp(fp_bytes)?;
@@ -674,7 +667,7 @@ pub(super) fn map_fp_to_g1_bytes(
 
 /// Maps field elements to a G2 point from bytes
 #[inline]
-pub(super) fn map_fp2_to_g2_bytes(
+pub(crate) fn map_fp2_to_g2_bytes(
     fp2_x: &[u8; FP_LENGTH],
     fp2_y: &[u8; FP_LENGTH],
 ) -> Result<[u8; G2_LENGTH], crate::PrecompileError> {
@@ -685,10 +678,8 @@ pub(super) fn map_fp2_to_g2_bytes(
 
 /// Performs multi-scalar multiplication (MSM) for G1 points taking byte inputs.
 #[inline]
-pub(super) fn p1_msm_bytes(
-    point_scalar_pairs: impl Iterator<
-        Item = Result<(G1Point, [u8; SCALAR_LENGTH]), crate::PrecompileError>,
-    >,
+pub(crate) fn p1_msm_bytes(
+    point_scalar_pairs: impl Iterator<Item = Result<G1PointScalar, crate::PrecompileError>>,
 ) -> Result<[u8; G1_LENGTH], crate::PrecompileError> {
     let mut g1_points = Vec::new();
     let mut scalars = Vec::new();
@@ -724,10 +715,8 @@ pub(super) fn p1_msm_bytes(
 
 /// Performs multi-scalar multiplication (MSM) for G2 points taking byte inputs.
 #[inline]
-pub(super) fn p2_msm_bytes(
-    point_scalar_pairs: impl Iterator<
-        Item = Result<(G2Point, [u8; SCALAR_LENGTH]), crate::PrecompileError>,
-    >,
+pub(crate) fn p2_msm_bytes(
+    point_scalar_pairs: impl Iterator<Item = Result<G2PointScalar, crate::PrecompileError>>,
 ) -> Result<[u8; G2_LENGTH], crate::PrecompileError> {
     let mut g2_points = Vec::new();
     let mut scalars = Vec::new();
@@ -763,7 +752,7 @@ pub(super) fn p2_msm_bytes(
 
 /// pairing_check_bytes performs a pairing check on a list of G1 and G2 point pairs taking byte inputs.
 #[inline]
-pub(super) fn pairing_check_bytes(pairs: &[PairingPair]) -> Result<bool, crate::PrecompileError> {
+pub(crate) fn pairing_check_bytes(pairs: &[PairingPair]) -> Result<bool, crate::PrecompileError> {
     if pairs.is_empty() {
         return Ok(true);
     }

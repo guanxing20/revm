@@ -7,6 +7,141 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0](https://github.com/bluealloy/revm/compare/op-revm-v11.2.0...op-revm-v12.0.0) - 2025-10-30
+
+### Added
+
+- JournaledAccount, a nice way to update and track changes ([#3086](https://github.com/bluealloy/revm/pull/3086))
+
+### Fixed
+
+- *(jovian)* fixes the DA footprint update storage slot. fix l1 fork associated with Jovian. ([#3120](https://github.com/bluealloy/revm/pull/3120))
+- *(op-revm)* add missing enveloped_tx validation in validate_env ([#3094](https://github.com/bluealloy/revm/pull/3094))
+
+### Other
+
+- *(op)* use helper function in validate against state ([#3069](https://github.com/bluealloy/revm/pull/3069))
+
+
+## [11.3.0](https://github.com/bluealloy/revm/compare/op-revm-v11.2.0...op-revm-v11.3.0) - 2025-10-28
+
+### Added
+
+- *(precompiles/jovian)* add jovian precompiles to revm ([#3128](https://github.com/bluealloy/revm/pull/3128))
+
+
+## [11.2.0](https://github.com/bluealloy/revm/compare/op-revm-v11.1.2...op-revm-v11.2.0) - 2025-10-17
+
+### Other
+
+- updated the following local packages: revm
+
+## [11.1.2](https://github.com/bluealloy/revm/compare/op-revm-v11.1.1...op-revm-v11.1.2) - 2025-10-15
+
+### Other
+
+- updated the following local packages: revm
+
+## [11.1.1](https://github.com/bluealloy/revm/compare/op-revm-v11.1.0...op-revm-v11.1.1) - 2025-10-15
+
+### Other
+
+- updated the following local packages: revm
+
+## [11.1.0](https://github.com/bluealloy/revm/compare/op-revm-v11.0.0...op-revm-v11.1.0) - 2025-10-09
+
+### Fixed
+
+- *(op-revm)* return error instead of panic when enveloped_tx is missing ([#3055](https://github.com/bluealloy/revm/pull/3055))
+
+### Other
+
+- *(op)* backport of #3073 fix for l1block info ([#3076](https://github.com/bluealloy/revm/pull/3076))
+- backport v89 changelog ([#3075](https://github.com/bluealloy/revm/pull/3075))
+- *(op)* split paths for deposit tx in caller deduction ([#3041](https://github.com/bluealloy/revm/pull/3041))
+
+## [10.1.1](https://github.com/bluealloy/revm/compare/op-revm-v10.0.0...op-revm-v10.1.1) - 2025-09-23
+
+## [11.0.0](https://github.com/bluealloy/revm/compare/op-revm-v10.1.0...op-revm-v11.0.0) - 2025-10-07
+
+### Added
+
+- *(jovian)* add da footprint block limit. ([#3003](https://github.com/bluealloy/revm/pull/3003))
+- *(op-revm)* implement jovian operator fee fix ([#2996](https://github.com/bluealloy/revm/pull/2996))
+- *(op-revm)* Add an option to disable "fee-charge" on `op-revm` ([#2980](https://github.com/bluealloy/revm/pull/2980))
+- [**breaking**] Remove kzg-rs ([#2909](https://github.com/bluealloy/revm/pull/2909))
+
+### Fixed
+
+- add missing is_fee_charge_disabled check ([#3007](https://github.com/bluealloy/revm/pull/3007))
+- Apply spelling corrections from PRs #2926, #2915, #2908 ([#2978](https://github.com/bluealloy/revm/pull/2978))
+- *(op-revm)* clear enveloped_tx for deposit txs in build_fill and align docs ([#2957](https://github.com/bluealloy/revm/pull/2957))
+
+### Other
+
+- changelog update for v87 ([#3056](https://github.com/bluealloy/revm/pull/3056))
+- add boundless ([#3043](https://github.com/bluealloy/revm/pull/3043))
+- helper function gas_balance_spending ([#3030](https://github.com/bluealloy/revm/pull/3030))
+- helper caller_initial_modification added ([#3032](https://github.com/bluealloy/revm/pull/3032))
+- EvmTr and InspectorEvmTr receive all/all_mut fn ([#3037](https://github.com/bluealloy/revm/pull/3037))
+- add ensure_enough_balance helper ([#3033](https://github.com/bluealloy/revm/pull/3033))
+- *(op-revm)* propagate optional_fee_charge feature ([#3020](https://github.com/bluealloy/revm/pull/3020))
+- Set l2_block in try_fetch for pre-Isthmus forks; add reload tests ([#2994](https://github.com/bluealloy/revm/pull/2994))
+- prealloc few frames ([#2965](https://github.com/bluealloy/revm/pull/2965))
+- treat empty input as zero operator fee in operator_fee_charge ([#2973](https://github.com/bluealloy/revm/pull/2973))
+- add SECURITY.md ([#2956](https://github.com/bluealloy/revm/pull/2956))
+- *(op-revm)* rm redundant phantom ([#2943](https://github.com/bluealloy/revm/pull/2943))
+- *(op-revm)* add serialize DepositTransactionParts test ([#2942](https://github.com/bluealloy/revm/pull/2942))
+- *(handler)* provide `&CallInputs`to`PrecompileProvider::run` ([#2921](https://github.com/bluealloy/revm/pull/2921))
+
+## [10.1.0](https://github.com/bluealloy/revm/compare/op-revm-v10.0.0...op-revm-v10.1.0) - 2025-09-23
+
+### Added
+
+- *(op-revm)* Add an option to disable "fee-charge" on `op-revm` ([#2980](https://github.com/bluealloy/revm/pull/2980))
+
+## [10.0.0](https://github.com/bluealloy/revm/compare/op-revm-v9.0.1...op-revm-v10.0.0) - 2025-08-23
+
+### Added
+
+- *(fusaka)* Add PrecompileId ([#2904](https://github.com/bluealloy/revm/pull/2904))
+
+### Fixed
+
+- *(handler)* correct transaction ID decrement logic ([#2892](https://github.com/bluealloy/revm/pull/2892))
+
+## [9.0.1](https://github.com/bluealloy/revm/compare/op-revm-v9.0.0...op-revm-v9.0.1) - 2025-08-12
+
+### Other
+
+- updated the following local packages: revm
+
+## [9.0.0](https://github.com/bluealloy/revm/compare/op-revm-v8.1.0...op-revm-v9.0.0) - 2025-08-06
+
+### Added
+
+- fix renamed functions for system_call ([#2824](https://github.com/bluealloy/revm/pull/2824))
+- refactor test utils ([#2813](https://github.com/bluealloy/revm/pull/2813))
+- add system transaction inspection support ([#2808](https://github.com/bluealloy/revm/pull/2808))
+- Align naming of SystemCallEvm function to ExecuteEvm ([#2814](https://github.com/bluealloy/revm/pull/2814))
+- rename bn128 to bn254 for Ethereum standard consistency ([#2810](https://github.com/bluealloy/revm/pull/2810))
+
+### Fixed
+
+- *(op-revm)* system tx not enveloped ([#2807](https://github.com/bluealloy/revm/pull/2807))
+- nonce changed is not reverted in journal if fail due to insufficient balance ([#2805](https://github.com/bluealloy/revm/pull/2805))
+
+### Other
+
+- update README.md ([#2842](https://github.com/bluealloy/revm/pull/2842))
+- *(op-revm)* Adds caller nonce assertion to op-revm intergation tests ([#2815](https://github.com/bluealloy/revm/pull/2815))
+- *(op-revm)* Full test coverage `OpTransactionError` ([#2818](https://github.com/bluealloy/revm/pull/2818))
+- Update test data for renamed tests ([#2817](https://github.com/bluealloy/revm/pull/2817))
+- reuse global crypto provide idea ([#2786](https://github.com/bluealloy/revm/pull/2786))
+- add rust-version and note about MSRV ([#2789](https://github.com/bluealloy/revm/pull/2789))
+- add OnceLock re-export with no_std support ([#2787](https://github.com/bluealloy/revm/pull/2787))
+- Add dyn Crypto trait to PrecompileFn ([#2772](https://github.com/bluealloy/revm/pull/2772))
+
 ## [8.1.0](https://github.com/bluealloy/revm/compare/op-revm-v8.0.3...op-revm-v8.1.0) - 2025-07-23
 
 ### Added

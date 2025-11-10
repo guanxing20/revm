@@ -1,9 +1,9 @@
 use clap::Parser;
-use context::TxEnv;
-use database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET};
-use inspector::{inspectors::TracerEip3155, InspectEvm};
 use revm::{
     bytecode::{Bytecode, BytecodeDecodeError},
+    context::TxEnv,
+    database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET},
+    inspector::{inspectors::TracerEip3155, InspectEvm},
     primitives::{hex, TxKind},
     Context, Database, ExecuteEvm, MainBuilder, MainContext,
 };
@@ -75,8 +75,9 @@ impl Cmd {
             unreachable!()
         };
 
-        let bytecode = hex::decode(bytecode_str.trim()).map_err(|_| Errors::InvalidBytecode)?;
-        let input = hex::decode(self.input.trim())
+        let bytecode = hex::decode(bytecode_str.trim().trim_start_matches("0x"))
+            .map_err(|_| Errors::InvalidBytecode)?;
+        let input = hex::decode(self.input.trim().trim_start_matches("0x"))
             .map_err(|_| Errors::InvalidInput)?
             .into();
 
@@ -109,9 +110,11 @@ impl Cmd {
                 .without_plots();
             let mut criterion_group = criterion.benchmark_group("revme");
             criterion_group.bench_function("evm", |b| {
-                b.iter(|| {
-                    let _ = evm.transact(tx.clone()).unwrap();
-                })
+                b.iter_batched(
+                    || tx.clone(),
+                    |input| evm.transact(input).unwrap(),
+                    criterion::BatchSize::SmallInput,
+                );
             });
             criterion_group.finish();
 
@@ -119,19 +122,17 @@ impl Cmd {
         }
 
         let time = Instant::now();
-        let state = if self.trace {
-            evm.inspect_tx(tx.clone())
-                .map_err(|_| Errors::EVMError)?
-                .state
+        let r = if self.trace {
+            evm.inspect_tx(tx)
         } else {
-            let out = evm.transact(tx.clone()).map_err(|_| Errors::EVMError)?;
-            println!("Result: {:#?}", out.result);
-            out.state
-        };
+            evm.transact(tx)
+        }
+        .map_err(|_| Errors::EVMError)?;
         let time = time.elapsed();
 
+        println!("Result: {:#?}", r.result);
         if self.state {
-            println!("State: {state:#?}");
+            println!("State: {:#?}", r.state);
         }
 
         println!("Elapsed: {time:?}");

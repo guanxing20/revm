@@ -28,6 +28,10 @@ macro_rules! require_non_staticcall {
 /// Similar to the `?` operator but for use in instruction implementations.
 #[macro_export]
 #[collapse_debuginfo(yes)]
+#[deprecated(
+    since = "29.0.0",
+    note = "Prefer `let Some(x) = expr else { return; };` for early return in instruction functions"
+)]
 macro_rules! otry {
     ($expression: expr) => {{
         let Some(value) = $expression else {
@@ -47,7 +51,7 @@ macro_rules! check {
             .spec_id()
             .is_enabled_in(primitives::hardfork::SpecId::$min)
         {
-            $interpreter.halt($crate::InstructionResult::NotActivated);
+            $interpreter.halt_not_activated();
             return;
         }
     };
@@ -62,10 +66,47 @@ macro_rules! gas {
     };
     ($interpreter:expr, $gas:expr, $ret:expr) => {
         if !$interpreter.gas.record_cost($gas) {
-            $interpreter.halt($crate::InstructionResult::OutOfGas);
+            $interpreter.halt_oog();
             return $ret;
         }
     };
+}
+
+/// Loads account and account berlin gas cost accounting.
+#[macro_export]
+#[collapse_debuginfo(yes)]
+macro_rules! berlin_load_account {
+    ($context:expr, $address:expr, $load_code:expr) => {
+        $crate::berlin_load_account!($context, $address, $load_code, ())
+    };
+    ($context:expr, $address:expr, $load_code:expr, $ret:expr) => {{
+        $crate::gas!($context.interpreter, WARM_STORAGE_READ_COST, $ret);
+        let skip_cold_load =
+            $context.interpreter.gas.remaining() < COLD_ACCOUNT_ACCESS_COST_ADDITIONAL;
+        match $context
+            .host
+            .load_account_info_skip_cold_load($address, $load_code, skip_cold_load)
+        {
+            Ok(account) => {
+                if account.is_cold {
+                    $crate::gas!(
+                        $context.interpreter,
+                        COLD_ACCOUNT_ACCESS_COST_ADDITIONAL,
+                        $ret
+                    );
+                }
+                account
+            }
+            Err(LoadError::ColdLoadSkipped) => {
+                $context.interpreter.halt_oog();
+                return $ret;
+            }
+            Err(LoadError::DBError) => {
+                $context.interpreter.halt_fatal();
+                return $ret;
+            }
+        }
+    }};
 }
 
 /// Same as [`gas!`], but with `gas` as an option.
@@ -79,14 +120,14 @@ macro_rules! gas_or_fail {
         match $gas {
             Some(gas_used) => $crate::gas!($interpreter, gas_used, $ret),
             None => {
-                $interpreter.halt($crate::InstructionResult::OutOfGas);
+                $interpreter.halt_oog();
                 return $ret;
             }
         }
     };
 }
 
-/// Resizes the interpreterreter memory if necessary. Fails the instruction if the memory or gas limit
+/// Resizes the interpreter memory if necessary. Fails the instruction if the memory or gas limit
 /// is exceeded.
 #[macro_export]
 #[collapse_debuginfo(yes)]
@@ -95,13 +136,18 @@ macro_rules! resize_memory {
         $crate::resize_memory!($interpreter, $offset, $len, ())
     };
     ($interpreter:expr, $offset:expr, $len:expr, $ret:expr) => {
+        #[cfg(feature = "memory_limit")]
+        if $interpreter.memory.limit_reached($offset, $len) {
+            $interpreter.halt_memory_limit_oog();
+            return $ret;
+        }
         if !$crate::interpreter::resize_memory(
             &mut $interpreter.gas,
             &mut $interpreter.memory,
             $offset,
             $len,
         ) {
-            $interpreter.halt($crate::InstructionResult::MemoryOOG);
+            $interpreter.halt_memory_oog();
             return $ret;
         }
     };
@@ -111,9 +157,9 @@ macro_rules! resize_memory {
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! popn {
-    ([ $($x:ident),* ],$interpreterreter:expr $(,$ret:expr)? ) => {
-        let Some([$( $x ),*]) = $interpreterreter.stack.popn() else {
-            $interpreterreter.halt($crate::InstructionResult::StackUnderflow);
+    ([ $($x:ident),* ],$interpreter:expr $(,$ret:expr)? ) => {
+        let Some([$( $x ),*]) = $interpreter.stack.popn() else {
+            $interpreter.halt_underflow();
             return $($ret)?;
         };
     };
@@ -142,7 +188,7 @@ macro_rules! popn_top {
 
         // Workaround for https://github.com/rust-lang/rust/issues/144329.
         if $interpreter.stack.len() < (1 + $crate::_count!($($x)*)) {
-            $interpreter.halt($crate::InstructionResult::StackUnderflow);
+            $interpreter.halt_underflow();
             return $($ret)?;
         }
         let ([$( $x ),*], $top) = unsafe { $interpreter.stack.popn_top().unwrap_unchecked() };
@@ -155,7 +201,7 @@ macro_rules! popn_top {
 macro_rules! push {
     ($interpreter:expr, $x:expr $(,$ret:item)?) => (
         if !($interpreter.stack.push($x)) {
-            $interpreter.halt($crate::InstructionResult::StackOverflow);
+            $interpreter.halt_overflow();
             return $($ret)?;
         }
     )

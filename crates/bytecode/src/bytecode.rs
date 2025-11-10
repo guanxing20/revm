@@ -8,8 +8,7 @@ use crate::{
     eip7702::{Eip7702Bytecode, EIP7702_MAGIC_BYTES},
     BytecodeDecodeError, JumpTable, LegacyAnalyzedBytecode, LegacyRawBytecode,
 };
-use core::fmt::Debug;
-use primitives::{keccak256, Address, Bytes, B256, KECCAK_EMPTY};
+use primitives::{alloy_primitives::Sealable, keccak256, Address, Bytes, B256, KECCAK_EMPTY};
 
 /// Main bytecode structure with all variants.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
@@ -25,6 +24,13 @@ impl Default for Bytecode {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Sealable for Bytecode {
+    #[inline]
+    fn hash_slow(&self) -> B256 {
+        self.hash_slow()
     }
 }
 
@@ -45,6 +51,7 @@ impl Bytecode {
     }
 
     /// Calculates hash of the bytecode.
+    #[inline]
     pub fn hash_slow(&self) -> B256 {
         if self.is_empty() {
             KECCAK_EMPTY
@@ -54,6 +61,7 @@ impl Bytecode {
     }
 
     /// Returns `true` if bytecode is EIP-7702.
+    #[inline]
     pub const fn is_eip7702(&self) -> bool {
         matches!(self, Self::Eip7702(_))
     }
@@ -100,6 +108,7 @@ impl Bytecode {
     /// # Panics
     ///
     /// For possible panics see [`LegacyAnalyzedBytecode::new`].
+    #[inline]
     pub fn new_analyzed(bytecode: Bytes, original_len: usize, jump_table: JumpTable) -> Self {
         Self::LegacyAnalyzed(LegacyAnalyzedBytecode::new(
             bytecode,
@@ -118,6 +127,7 @@ impl Bytecode {
     }
 
     /// Pointer to the executable bytecode.
+    #[inline]
     pub fn bytecode_ptr(&self) -> *const u8 {
         self.bytecode().as_ptr()
     }

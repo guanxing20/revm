@@ -1,8 +1,8 @@
-use context::TxEnv;
 use criterion::Criterion;
-use database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET};
 use revm::{
     bytecode::Bytecode,
+    context::TxEnv,
+    database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET},
     primitives::{hex, Bytes, TxKind},
     Context, ExecuteEvm, MainBuilder, MainContext,
 };
@@ -35,13 +35,8 @@ pub fn run(criterion: &mut Criterion) {
 
         criterion.bench_function(name, |b| {
             b.iter_batched(
-                || {
-                    // create a transaction input
-                    tx.clone()
-                },
-                |input| {
-                    let _ = evm.transact_one(input).unwrap();
-                },
+                || tx.clone(),
+                |input| evm.transact_one(input).unwrap(),
                 criterion::BatchSize::SmallInput,
             );
         });

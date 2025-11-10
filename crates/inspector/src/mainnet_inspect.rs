@@ -1,14 +1,15 @@
 use crate::{
-    inspect::{InspectCommitEvm, InspectEvm},
+    inspect::{InspectCommitEvm, InspectEvm, InspectSystemCallEvm},
     Inspector, InspectorEvmTr, InspectorHandler, JournalExt,
 };
-use context::{ContextSetters, ContextTr, Evm, JournalTr};
+use context::{ContextSetters, ContextTr, Evm, FrameStack, JournalTr};
 use database_interface::DatabaseCommit;
 use handler::{
-    instructions::InstructionProvider, EthFrame, EvmTr, EvmTrError, Handler, MainnetHandler,
-    PrecompileProvider,
+    instructions::InstructionProvider, system_call::SystemCallTx, EthFrame, EvmTr, EvmTrError,
+    Handler, MainnetHandler, PrecompileProvider,
 };
 use interpreter::{interpreter::EthInterpreter, InterpreterResult};
+use primitives::{Address, Bytes};
 use state::EvmState;
 
 // Implementing InspectorHandler for MainnetHandler.
@@ -57,6 +58,33 @@ where
 {
 }
 
+// Implementing InspectSystemCallEvm for Evm
+impl<CTX, INSP, INST, PRECOMPILES> InspectSystemCallEvm
+    for Evm<CTX, INSP, INST, PRECOMPILES, EthFrame<EthInterpreter>>
+where
+    CTX: ContextSetters
+        + ContextTr<Journal: JournalTr<State = EvmState> + JournalExt, Tx: SystemCallTx>,
+    INSP: Inspector<CTX, EthInterpreter>,
+    INST: InstructionProvider<Context = CTX, InterpreterTypes = EthInterpreter>,
+    PRECOMPILES: PrecompileProvider<CTX, Output = InterpreterResult>,
+{
+    fn inspect_one_system_call_with_caller(
+        &mut self,
+        caller: Address,
+        system_contract_address: Address,
+        data: Bytes,
+    ) -> Result<Self::ExecutionResult, Self::Error> {
+        // Set system call transaction fields similar to transact_system_call_with_caller
+        self.set_tx(CTX::Tx::new_system_tx_with_caller(
+            caller,
+            system_contract_address,
+            data,
+        ));
+        // Use inspect_run_system_call instead of run_system_call for inspection
+        MainnetHandler::default().inspect_run_system_call(self)
+    }
+}
+
 // Implementing InspectorEvmTr for Evm
 impl<CTX, INSP, I, P> InspectorEvmTr for Evm<CTX, INSP, I, P, EthFrame<EthInterpreter>>
 where
@@ -67,33 +95,36 @@ where
 {
     type Inspector = INSP;
 
-    fn inspector(&mut self) -> &mut Self::Inspector {
-        &mut self.inspector
+    fn all_inspector(
+        &self,
+    ) -> (
+        &Self::Context,
+        &Self::Instructions,
+        &Self::Precompiles,
+        &FrameStack<Self::Frame>,
+        &Self::Inspector,
+    ) {
+        let ctx = &self.ctx;
+        let frame = &self.frame_stack;
+        let instructions = &self.instruction;
+        let precompiles = &self.precompiles;
+        let inspector = &self.inspector;
+        (ctx, instructions, precompiles, frame, inspector)
     }
-
-    fn ctx_inspector(&mut self) -> (&mut Self::Context, &mut Self::Inspector) {
-        (&mut self.ctx, &mut self.inspector)
-    }
-
-    fn ctx_inspector_frame(
-        &mut self,
-    ) -> (&mut Self::Context, &mut Self::Inspector, &mut Self::Frame) {
-        (&mut self.ctx, &mut self.inspector, self.frame_stack.get())
-    }
-
-    fn ctx_inspector_frame_instructions(
+    fn all_mut_inspector(
         &mut self,
     ) -> (
         &mut Self::Context,
-        &mut Self::Inspector,
-        &mut Self::Frame,
         &mut Self::Instructions,
+        &mut Self::Precompiles,
+        &mut FrameStack<Self::Frame>,
+        &mut Self::Inspector,
     ) {
-        (
-            &mut self.ctx,
-            &mut self.inspector,
-            self.frame_stack.get(),
-            &mut self.instruction,
-        )
+        let ctx = &mut self.ctx;
+        let frame = &mut self.frame_stack;
+        let instructions = &mut self.instruction;
+        let precompiles = &mut self.precompiles;
+        let inspector = &mut self.inspector;
+        (ctx, instructions, precompiles, frame, inspector)
     }
 }

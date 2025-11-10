@@ -1,3 +1,4 @@
+//! BLS12-381 precompile using Arkworks BLS12-381 implementation.
 use super::{G1Point, G2Point, PairingPair};
 use crate::{
     bls12_381_const::{FP_LENGTH, G1_LENGTH, G2_LENGTH, SCALAR_LENGTH},
@@ -12,7 +13,7 @@ use ark_ec::{
 use ark_ff::{One, PrimeField, Zero};
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use std::{string::ToString, vec::Vec};
+use std::vec::Vec;
 
 /// Reads a single `Fp` field element from the input slice.
 ///
@@ -33,8 +34,7 @@ fn read_fp(input_be: &[u8]) -> Result<Fq, PrecompileError> {
     // Reverse in-place to convert from big-endian to little-endian.
     input_le.reverse();
 
-    Fq::deserialize_uncompressed(&input_le[..])
-        .map_err(|_| PrecompileError::Other("non-canonical fp value".to_string()))
+    Fq::deserialize_uncompressed(&input_le[..]).map_err(|_| PrecompileError::NonCanonicalFp)
 }
 
 /// Encodes an `Fp` field element into a big-endian byte array.
@@ -79,9 +79,7 @@ fn new_g1_point_no_subgroup_check(px: Fq, py: Fq) -> Result<G1Affine, Precompile
         // We cannot use `G1Affine::new` because that triggers an assert if the point is not on the curve.
         let point = G1Affine::new_unchecked(px, py);
         if !point.is_on_curve() {
-            return Err(PrecompileError::Other(
-                "Element not on G1 curve".to_string(),
-            ));
+            return Err(PrecompileError::Bls12381G1NotOnCurve);
         }
         Ok(point)
     }
@@ -103,9 +101,7 @@ fn new_g2_point_no_subgroup_check(x: Fq2, y: Fq2) -> Result<G2Affine, Precompile
         // We cannot use `G2Affine::new` because that triggers an assert if the point is not on the curve.
         let point = G2Affine::new_unchecked(x, y);
         if !point.is_on_curve() {
-            return Err(PrecompileError::Other(
-                "Element not on G2 curve".to_string(),
-            ));
+            return Err(PrecompileError::Bls12381G2NotOnCurve);
         }
         point
     };
@@ -126,9 +122,7 @@ fn new_g2_point_no_subgroup_check(x: Fq2, y: Fq2) -> Result<G2Affine, Precompile
 fn read_g1(x: &[u8; FP_LENGTH], y: &[u8; FP_LENGTH]) -> Result<G1Affine, PrecompileError> {
     let point = read_g1_no_subgroup_check(x, y)?;
     if !point.is_in_correct_subgroup_assuming_on_curve() {
-        return Err(PrecompileError::Other(
-            "Element not in the correct subgroup".to_string(),
-        ));
+        return Err(PrecompileError::Bls12381G1NotInSubgroup);
     }
     Ok(point)
 }
@@ -185,9 +179,7 @@ fn read_g2(
 ) -> Result<G2Affine, PrecompileError> {
     let point = read_g2_no_subgroup_check(a_x_0, a_x_1, a_y_0, a_y_1)?;
     if !point.is_in_correct_subgroup_assuming_on_curve() {
-        return Err(PrecompileError::Other(
-            "Element not in the correct subgroup".to_string(),
-        ));
+        return Err(PrecompileError::Bls12381G1NotInSubgroup);
     }
     Ok(point)
 }
@@ -243,10 +235,7 @@ fn encode_g2_point(input: &G2Affine) -> [u8; G2_LENGTH] {
 #[inline]
 fn read_scalar(input: &[u8]) -> Result<Fr, PrecompileError> {
     if input.len() != SCALAR_LENGTH {
-        return Err(PrecompileError::Other(format!(
-            "Input should be {SCALAR_LENGTH} bytes, was {}",
-            input.len()
-        )));
+        return Err(PrecompileError::Bls12381ScalarInputLength);
     }
 
     Ok(Fr::from_be_bytes_mod_order(input))
@@ -347,7 +336,7 @@ fn map_fp2_to_g2(fp2: &Fq2) -> G2Affine {
 /// pairing_check performs a pairing check on a list of G1 and G2 point pairs and
 /// returns true if the result is equal to the identity element.
 #[inline]
-fn pairing_check(pairs: &[(G1Affine, G2Affine)]) -> bool {
+pub(crate) fn pairing_check(pairs: &[(G1Affine, G2Affine)]) -> bool {
     if pairs.is_empty() {
         return true;
     }
@@ -360,7 +349,7 @@ fn pairing_check(pairs: &[(G1Affine, G2Affine)]) -> bool {
 
 /// pairing_check_bytes performs a pairing check on a list of G1 and G2 point pairs taking byte inputs.
 #[inline]
-pub(super) fn pairing_check_bytes(pairs: &[PairingPair]) -> Result<bool, PrecompileError> {
+pub(crate) fn pairing_check_bytes(pairs: &[PairingPair]) -> Result<bool, PrecompileError> {
     if pairs.is_empty() {
         return Ok(true);
     }
@@ -405,7 +394,7 @@ pub(super) fn pairing_check_bytes(pairs: &[PairingPair]) -> Result<bool, Precomp
 
 /// Performs point addition on two G1 points taking byte coordinates.
 #[inline]
-pub(super) fn p1_add_affine_bytes(
+pub(crate) fn p1_add_affine_bytes(
     a: G1Point,
     b: G1Point,
 ) -> Result<[u8; G1_LENGTH], PrecompileError> {
@@ -426,7 +415,7 @@ pub(super) fn p1_add_affine_bytes(
 
 /// Performs point addition on two G2 points taking byte coordinates.
 #[inline]
-pub(super) fn p2_add_affine_bytes(
+pub(crate) fn p2_add_affine_bytes(
     a: G2Point,
     b: G2Point,
 ) -> Result<[u8; G2_LENGTH], PrecompileError> {
@@ -447,7 +436,7 @@ pub(super) fn p2_add_affine_bytes(
 
 /// Maps a field element to a G1 point from bytes
 #[inline]
-pub(super) fn map_fp_to_g1_bytes(
+pub(crate) fn map_fp_to_g1_bytes(
     fp_bytes: &[u8; FP_LENGTH],
 ) -> Result<[u8; G1_LENGTH], PrecompileError> {
     let fp = read_fp(fp_bytes)?;
@@ -457,7 +446,7 @@ pub(super) fn map_fp_to_g1_bytes(
 
 /// Maps field elements to a G2 point from bytes
 #[inline]
-pub(super) fn map_fp2_to_g2_bytes(
+pub(crate) fn map_fp2_to_g2_bytes(
     fp2_x: &[u8; FP_LENGTH],
     fp2_y: &[u8; FP_LENGTH],
 ) -> Result<[u8; G2_LENGTH], PrecompileError> {
@@ -468,7 +457,7 @@ pub(super) fn map_fp2_to_g2_bytes(
 
 /// Performs multi-scalar multiplication (MSM) for G1 points taking byte inputs.
 #[inline]
-pub(super) fn p1_msm_bytes(
+pub(crate) fn p1_msm_bytes(
     point_scalar_pairs: impl Iterator<Item = Result<(G1Point, [u8; SCALAR_LENGTH]), PrecompileError>>,
 ) -> Result<[u8; G1_LENGTH], PrecompileError> {
     let mut g1_points = Vec::new();
@@ -505,7 +494,7 @@ pub(super) fn p1_msm_bytes(
 
 /// Performs multi-scalar multiplication (MSM) for G2 points taking byte inputs.
 #[inline]
-pub(super) fn p2_msm_bytes(
+pub(crate) fn p2_msm_bytes(
     point_scalar_pairs: impl Iterator<Item = Result<(G2Point, [u8; SCALAR_LENGTH]), PrecompileError>>,
 ) -> Result<[u8; G2_LENGTH], PrecompileError> {
     let mut g2_points = Vec::new();

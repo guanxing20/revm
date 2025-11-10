@@ -25,7 +25,7 @@ use primitives::{
     constants::CALL_STACK_LIMIT,
     hardfork::SpecId::{self, HOMESTEAD, LONDON, SPURIOUS_DRAGON},
 };
-use primitives::{keccak256, Address, Bytes, B256, U256};
+use primitives::{keccak256, Address, Bytes, U256};
 use state::Bytecode;
 use std::borrow::ToOwned;
 use std::boxed::Box;
@@ -68,7 +68,8 @@ impl Default for EthFrame<EthInterpreter> {
 }
 
 impl EthFrame<EthInterpreter> {
-    fn invalid() -> Self {
+    /// Creates an new invalid [`EthFrame`].
+    pub fn invalid() -> Self {
         Self::do_default(Interpreter::invalid())
     }
 
@@ -162,11 +163,6 @@ impl EthFrame<EthInterpreter> {
             return return_result(InstructionResult::CallTooDeep);
         }
 
-        // Make account warm and loaded.
-        let _ = ctx
-            .journal_mut()
-            .load_account_delegated(inputs.bytecode_address)?;
-
         // Create subroutine checkpoint
         let checkpoint = ctx.journal_mut().checkpoint();
 
@@ -176,7 +172,7 @@ impl EthFrame<EthInterpreter> {
             // Target will get touched even if balance transferred is zero.
             if let Some(i) =
                 ctx.journal_mut()
-                    .transfer(inputs.caller, inputs.target_address, value)?
+                    .transfer_loaded(inputs.caller, inputs.target_address, value)
             {
                 ctx.journal_mut().checkpoint_revert(checkpoint);
                 return return_result(i.into());
@@ -193,16 +189,7 @@ impl EthFrame<EthInterpreter> {
         let is_static = inputs.is_static;
         let gas_limit = inputs.gas_limit;
 
-        if let Some(result) = precompiles
-            .run(
-                ctx,
-                &inputs.bytecode_address,
-                &interpreter_input,
-                is_static,
-                gas_limit,
-            )
-            .map_err(ERROR::from_string)?
-        {
+        if let Some(result) = precompiles.run(ctx, &inputs).map_err(ERROR::from_string)? {
             if result.result.is_ok() {
                 ctx.journal_mut().checkpoint_commit();
             } else {
@@ -214,21 +201,20 @@ impl EthFrame<EthInterpreter> {
             })));
         }
 
-        let account = ctx
-            .journal_mut()
-            .load_account_code(inputs.bytecode_address)?;
-
-        let mut code_hash = account.info.code_hash();
-        let mut bytecode = account.info.code.clone().unwrap_or_default();
-
-        if let Bytecode::Eip7702(eip7702_bytecode) = bytecode {
-            let account = &ctx
+        // Get bytecode and hash - either from known_bytecode or load from account
+        let (bytecode, bytecode_hash) = if let Some((hash, code)) = inputs.known_bytecode.clone() {
+            // Use provided bytecode and hash
+            (code, hash)
+        } else {
+            // Load account and get its bytecode
+            let account = ctx
                 .journal_mut()
-                .load_account_code(eip7702_bytecode.delegated_address)?
-                .info;
-            bytecode = account.code.clone().unwrap_or_default();
-            code_hash = account.code_hash();
-        }
+                .load_account_with_code(inputs.bytecode_address)?;
+            (
+                account.info.code.clone().unwrap_or_default(),
+                account.info.code_hash,
+            )
+        };
 
         // Returns success if bytecode is empty.
         if bytecode.is_empty() {
@@ -244,7 +230,7 @@ impl EthFrame<EthInterpreter> {
             FrameInput::Call(inputs),
             depth,
             memory,
-            ExtBytecode::new_with_hash(bytecode, code_hash),
+            ExtBytecode::new_with_hash(bytecode, bytecode_hash),
             interpreter_input,
             is_static,
             ctx.cfg().spec().into(),
@@ -283,36 +269,27 @@ impl EthFrame<EthInterpreter> {
             return return_error(InstructionResult::CallTooDeep);
         }
 
-        // Prague EOF
-        // TODO(EOF)
-        // if spec.is_enabled_in(OSAKA) && inputs.init_code.starts_with(&EOF_MAGIC_BYTES) {
-        //     return return_error(InstructionResult::CreateInitCodeStartingEF00);
-        // }
-
         // Fetch balance of caller.
-        let caller_info = &mut context.journal_mut().load_account(inputs.caller)?.data.info;
+        let mut caller_info = context.journal_mut().load_account_mut(inputs.caller)?;
 
         // Check if caller has enough balance to send to the created contract.
-        if caller_info.balance < inputs.value {
+        // decrement of balance is done in the create_account_checkpoint.
+        if *caller_info.balance() < inputs.value {
             return return_error(InstructionResult::OutOfFunds);
         }
 
         // Increase nonce of caller and check if it overflows
-        let old_nonce = caller_info.nonce;
-        let Some(new_nonce) = old_nonce.checked_add(1) else {
+        let old_nonce = caller_info.nonce();
+        if !caller_info.bump_nonce() {
             return return_error(InstructionResult::Return);
         };
-        caller_info.nonce = new_nonce;
-        context
-            .journal_mut()
-            .nonce_bump_journal_entry(inputs.caller);
 
         // Create address
-        let mut init_code_hash = B256::ZERO;
+        let mut init_code_hash = None;
         let created_address = match inputs.scheme {
             CreateScheme::Create => inputs.caller.create(old_nonce),
             CreateScheme::Create2 { salt } => {
-                init_code_hash = keccak256(&inputs.init_code);
+                let init_code_hash = *init_code_hash.insert(keccak256(&inputs.init_code));
                 inputs.caller.create2(salt.to_be_bytes(), init_code_hash)
             }
             CreateScheme::Custom { address } => address,
@@ -332,7 +309,7 @@ impl EthFrame<EthInterpreter> {
             Err(e) => return return_error(e.into()),
         };
 
-        let bytecode = ExtBytecode::new_with_hash(
+        let bytecode = ExtBytecode::new_with_optional_hash(
             Bytecode::new_legacy(inputs.init_code.clone()),
             init_code_hash,
         );
@@ -360,126 +337,6 @@ impl EthFrame<EthInterpreter> {
         );
         Ok(ItemOrResult::Item(this.consume()))
     }
-
-    /*
-    /// Make create frame.
-    #[inline]
-    pub fn make_eofcreate_frame(
-        mut this: OutFrame<'_, Self>,
-        evm: &mut EVM,
-        depth: usize,
-        memory: SharedMemory,
-        inputs: Box<EOFCreateInputs>,
-    ) -> Result<ItemOrResult<FrameToken, FrameResult>, ERROR> {
-        let context = evm.ctx();
-        let spec = context.cfg().spec().into();
-        let return_error = |e| {
-            Ok(ItemOrResult::Result(FrameResult::EOFCreate(
-                CreateOutcome {
-                    result: InterpreterResult {
-                        result: e,
-                        gas: Gas::new(inputs.gas_limit),
-                        output: Bytes::new(),
-                    },
-                    address: None,
-                },
-            )))
-        };
-
-        let (input, initcode, created_address) = match &inputs.kind {
-            EOFCreateKind::Opcode {
-                initcode,
-                input,
-                created_address,
-            } => (input.clone(), initcode.clone(), Some(*created_address)),
-            EOFCreateKind::Tx { .. } => {
-                // Decode eof and init code.
-                // TODO : Handle inc_nonce handling more gracefully.
-                // let Ok((eof, input)) = Eof::decode_dangling(initdata.clone()) else {
-                //     context.journal_mut().inc_account_nonce(inputs.caller)?;
-                //     return return_error(InstructionResult::InvalidEOFInitCode);
-                // };
-
-                // if eof.validate().is_err() {
-                //     // TODO : (EOF) New error type.
-                //     context.journal_mut().inc_account_nonce(inputs.caller)?;
-                //     return return_error(InstructionResult::InvalidEOFInitCode);
-                // }
-
-                // // Use nonce from tx to calculate address.
-                // let tx = context.tx();
-                // let create_address = tx.caller().create(tx.nonce());
-                unreachable!("EOF is disabled");
-                //(CallInput::Bytes(input), eof, Some(create_address))
-            }
-        };
-
-        // Check depth
-        if depth > CALL_STACK_LIMIT as usize {
-            return return_error(InstructionResult::CallTooDeep);
-        }
-
-        // Fetch balance of caller.
-        let caller = context.journal_mut().load_account(inputs.caller)?.data;
-
-        // Check if caller has enough balance to send to the created contract.
-        if caller.info.balance < inputs.value {
-            return return_error(InstructionResult::OutOfFunds);
-        }
-
-        // Increase nonce of caller and check if it overflows
-        let Some(new_nonce) = caller.info.nonce.checked_add(1) else {
-            // Can't happen on mainnet.
-            return return_error(InstructionResult::Return);
-        };
-        caller.info.nonce = new_nonce;
-        context
-            .journal_mut()
-            .nonce_bump_journal_entry(inputs.caller);
-
-        let old_nonce = new_nonce - 1;
-
-        let created_address = created_address.unwrap_or_else(|| inputs.caller.create(old_nonce));
-
-        // Load account so it needs to be marked as warm for access list.
-        context.journal_mut().load_account(created_address)?;
-
-        // Create account, transfer funds and make the journal checkpoint.
-        let checkpoint = match context.journal_mut().create_account_checkpoint(
-            inputs.caller,
-            created_address,
-            inputs.value,
-            spec,
-        ) {
-            Ok(checkpoint) => checkpoint,
-            Err(e) => return return_error(e.into()),
-        };
-
-        let interpreter_input = InputsImpl {
-            target_address: created_address,
-            caller_address: inputs.caller,
-            bytecode_address: None,
-            input,
-            call_value: inputs.value,
-        };
-
-        let gas_limit = inputs.gas_limit;
-        this.get(EthFrame::invalid).clear(
-            FrameData::EOFCreate(EOFCreateFrame { created_address }),
-            FrameInput::EOFCreate(inputs),
-            depth,
-            memory,
-            ExtBytecode::new(Bytecode::Eof(initcode)),
-            interpreter_input,
-            false,
-            true,
-            spec,
-            gas_limit,
-            checkpoint,
-        );
-        Ok(ItemOrResult::Item(this.consume()))
-    }
-     */
 
     /// Initializes a frame with the given context and precompiles.
     pub fn init_with_context<
@@ -727,47 +584,3 @@ pub fn return_create<JOURNAL: JournalTr>(
 
     interpreter_result.result = InstructionResult::Return;
 }
-
-/*
-pub fn return_eofcreate<JOURNAL: JournalTr>(
-    journal: &mut JOURNAL,
-    checkpoint: JournalCheckpoint,
-    interpreter_result: &mut InterpreterResult,
-    address: Address,
-    max_code_size: usize,
-) {
-    // Note we still execute RETURN opcode and return the bytes.
-    // In EOF those opcodes should abort execution.
-    //
-    // In RETURN gas is still protecting us from ddos and in oog,
-    // behaviour will be same as if it failed on return.
-    //
-    // Bytes of RETURN will drained in `insert_eofcreate_outcome`.
-    if interpreter_result.result != InstructionResult::ReturnContract {
-        journal.checkpoint_revert(checkpoint);
-        return;
-    }
-
-    if interpreter_result.output.len() > max_code_size {
-        journal.checkpoint_revert(checkpoint);
-        interpreter_result.result = InstructionResult::CreateContractSizeLimit;
-        return;
-    }
-
-    // Deduct gas for code deployment.
-    let gas_for_code = interpreter_result.output.len() as u64 * gas::CODEDEPOSIT;
-    if !interpreter_result.gas.record_cost(gas_for_code) {
-        journal.checkpoint_revert(checkpoint);
-        interpreter_result.result = InstructionResult::OutOfGas;
-        return;
-    }
-
-    journal.checkpoint_commit();
-
-    // Decode bytecode has a performance hit, but it has reasonable restrains.
-    let bytecode = Eof::decode(interpreter_result.output.clone()).expect("Eof is already verified");
-
-    // Eof bytecode is going to be hashed.
-    journal.set_code(address, Bytecode::Eof(Arc::new(bytecode)));
-}
- */

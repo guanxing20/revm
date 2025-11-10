@@ -7,7 +7,7 @@ use primitives::{hardfork::SpecId, Address, TxKind, U256};
 /// Configuration for the EVM.
 #[auto_impl(&, &mut, Box, Arc)]
 pub trait Cfg {
-    /// Specification id type, in requires to be convertible to `SpecId` so it can be used
+    /// Specification id type, it requires to be convertible to `SpecId` so it can be used
     /// by default in mainnet.
     type Spec: Into<SpecId> + Clone;
 
@@ -44,6 +44,9 @@ pub trait Cfg {
     /// Returns whether the EIP-3541 (disallowing new contracts with 0xEF prefix) is disabled.
     fn is_eip3541_disabled(&self) -> bool;
 
+    /// Returns whether the EIP-7623 (increased calldata cost) is disabled.
+    fn is_eip7623_disabled(&self) -> bool;
+
     /// Returns whether the balance check is disabled.
     fn is_balance_check_disabled(&self) -> bool;
 
@@ -58,6 +61,12 @@ pub trait Cfg {
 
     /// Returns whether the priority fee check is disabled.
     fn is_priority_fee_check_disabled(&self) -> bool;
+
+    /// Returns whether the fee charge is disabled.
+    fn is_fee_charge_disabled(&self) -> bool;
+
+    /// Returns the limit in bytes for the memory buffer.
+    fn memory_limit(&self) -> u64;
 }
 
 /// What bytecode analysis to perform

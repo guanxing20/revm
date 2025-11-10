@@ -1,9 +1,10 @@
-use context::TxEnv;
 use criterion::Criterion;
-use database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET};
-use inspector::CountInspector;
+
 use revm::{
     bytecode::Bytecode,
+    context::TxEnv,
+    database::{BenchmarkDB, BENCH_CALLER, BENCH_TARGET},
+    inspector::NoOpInspector,
     primitives::{bytes, hex, Bytes, TxKind},
     Context, ExecuteEvm, InspectEvm, MainBuilder, MainContext,
 };
@@ -15,7 +16,7 @@ pub fn run(criterion: &mut Criterion) {
         .with_db(BenchmarkDB::new_bytecode(bytecode.clone()))
         .modify_cfg_chained(|c| c.disable_nonce_check = true)
         .build_mainnet()
-        .with_inspector(CountInspector::new());
+        .with_inspector(NoOpInspector {});
 
     let tx = TxEnv::builder()
         .caller(BENCH_CALLER)
@@ -27,26 +28,16 @@ pub fn run(criterion: &mut Criterion) {
 
     criterion.bench_function("snailtracer", |b| {
         b.iter_batched(
-            || {
-                // create a transaction input
-                tx.clone()
-            },
-            |input| {
-                let _ = evm.transact_one(input).unwrap();
-            },
+            || tx.clone(),
+            |input| evm.transact_one(input).unwrap(),
             criterion::BatchSize::SmallInput,
         );
     });
 
-    criterion.bench_function("analysis-inspector", |b| {
+    criterion.bench_function("snailtracer-inspect", |b| {
         b.iter_batched(
-            || {
-                // create a transaction input
-                tx.clone()
-            },
-            |input| {
-                let _ = evm.inspect_one_tx(input);
-            },
+            || tx.clone(),
+            |input| evm.inspect_one_tx(input),
             criterion::BatchSize::SmallInput,
         );
     });
